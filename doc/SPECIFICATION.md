@@ -209,7 +209,7 @@ empty   = ""            ; Empty string, does not consume input
 ### Treatment of Space
 
 ```
-space   = SPACE
+space   = +SPACE
 ```
 
 Space is generally ignored by the engine unless indicated otherwise. However,
