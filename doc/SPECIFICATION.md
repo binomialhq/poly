@@ -533,10 +533,14 @@ annotation  = +number ":"
 ```
 
 Annotations associate expressions with a given numeric identifier, and can be
-used to create static indexes of elements. The annotations do not necessarily
-dictate order, however, in the sense that the identifiers need not be sorted.
-In fact, the annotations are not processed by Poly, since they are meant for
-binary encodings.
+used to create static indexes of elements. Annotations must be valid integers,
+meaning that leading zeros are removed, if they exist. Since other engines do
+not support zero as an index value, Poly doesn't either, and thus annotations
+consisting of all zeros constitute a semantic error.
+
+The annotations do not necessarily dictate order, however, in the sense that
+the identifiers need not be sorted. In fact, the annotations are not processed
+by Poly, since they are meant for binary encodings.
 
 Protobuf, for example, requires these in models, while Thrift also requires them
 in parameter declarations. One requirement that these two implementations share
@@ -550,6 +554,8 @@ When annotations appear in lists, specifically Field Lists and Parameter Lists,
 a mix of annotated and non-annotated entities is not allowed. Although such
 constructs are valid from a syntatic perspective, such scenario must not pass
 semantic validation, provoking an error that base being verified.
+
+
 
 As was clarified before, numbers with semantic meaning are only supported for
 the Hindu-Arabic numeral system, which is the case of annotations. Future
