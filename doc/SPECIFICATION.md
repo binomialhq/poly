@@ -962,11 +962,11 @@ or all upper case, but not in mixed case. The following verbs are supported:
 * `PATCH` ([RFC 5789](https://tools.ietf.org/html/rfc5789)).
 
 Several other verbs were left out of the specification, mostly because they
-are deprecated, not used, or not relevant in the context of the purpose of
-this specification. However, some of such decisions are questionable. The
-`CONNECT` verb, for example, may bear relevancy in many cases. Therefore, it's
-reasonable to assume that the set of verbs excluded from the specification will
-be reviewed in future revisions. The excluded verbs are the following:
+are deprecated, not used, or not relevant in the context of this specification.
+However, some of such decisions are questionable. The `CONNECT` verb, for
+example, may bear relevancy in many cases. Therefore, it's reasonable to assume
+that the set of verbs excluded from the specification will be reviewed in future
+revisions. The excluded verbs are the following:
 
 * `OPTIONS`, `HEAD`, `TRACE`, and `CONNECT`
 ([RFC 7231](https://tools.ietf.org/html/rfc7231));
