@@ -158,8 +158,8 @@ USPACE      = \p{Z}         ; Any Unicode Z-category code point
 Implementations may decide to support L-category characters in combination with
 M-category markers. Although the `ULETTER` declaration does recognize diacritics
 when encoded together as a single code point, it also fails to recognize them
-if the two are encoded separately. For example, `à` can be encoded as U+00E0 or
-as U+0061 U+0300. The former encodes `à` as a single code point, while the
+if the two are encoded separately. For example, `à` can be encoded as `U+00E0`
+or as `U+0061 U+0300`. The former encodes `à` as a single code point, while the
 latter encodes `a` followed by the accent modifier. In order to support
 modifiers, the engine may replace the `ULETTER` declaration above:
 
@@ -168,9 +168,9 @@ ULETTER     = \p{L}\p{M}*   ; Any L-category code point and M-category mark
 ```
 
 As will be made clear throughout the specification, some names can also include
-a set of extra characters. This set includes the Unicode characters U+005F (Low
-Line, more oftenly known as "underscore") and U+2010 (Hyphen), enabling symbols
-such as `User-Agent` and `_tcp` to be defined.
+a set of extra characters. This set includes the Unicode characters `U+005F`
+(Low Line, more oftenly known as "underscore") and `U+2010` (Hyphen), enabling
+symbols such as `User-Agent` and `_tcp` to be defined.
 
 ```
 EXTRA   = [\u005F\u2010]
