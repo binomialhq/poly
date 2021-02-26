@@ -223,7 +223,7 @@ when not in a context that indicates that space is not to be ignored.
 ```
 DQUOTE      = ["]                   ; Single U+0022 (")
 NOTDQUOTE   = [^"\\]                ; Anything but U+0022 (") or U+005C (\)
-ESCAPED     = "\\" .                ; U+005C (\) followed by anything
+ESCAPED     = "\\" .                ; U+005C (\) followed by one of anything
 ```
 
 ```
@@ -278,7 +278,7 @@ searched in reverse depth-order, starting with the topmost entry. This creates
 an overloading effect.
 
 When a name is not found in any scope as a result of a lookup, the engine must
-fail with an error. Symbols that are declared and yet already found on the same
+fail with an error. Symbols that are declared and yet already found in the same
 scope must also fail with an error, with an indication that the declaration is
 duplicated.
 
@@ -289,10 +289,6 @@ If the name of a primitive is redeclared, in any context, the system must fail
 with an error. If the name of a primitive is referenced, then it can only refer
 to the primitive with that name. This can be implemented by always starting the
 lookup process with the Primitive Space.
-
-By default, all constructs that produce an identified declaration (e.g. not
-anonymous) introduce a symbol to the scope where they are defined. Such
-constructs are properly identified throught the document.
 
 ### References
 
@@ -352,32 +348,13 @@ Space would be `.PetStore.Pet`. This forces the engine to begin the lookup from
 the bottommost scope. Thus, a dot at the beginning triggers full backtracking
 before the lookup is performed, down to the Global Space.
 
-### Identification
-
-An expression is said to be _identified_ when it introduces a new symbol that is
-directly associated with the rule. `model Pet`, for example, is identified,
-since the `Pet` symbol can be used to refer back to the declaration. Poly also
-supports _anonymous_ expressions, which in turn produce a rule, but do not
-associate it with any symbol. The example below illustrates an anonymous `model`
-declaration, classified as such for not being associated with any symbol.
-Throughout this specification, each section makes clear which rules can be
-identified or anonymous.
-
-```
-model {
-    1: int32 id,
-    2: string name
-}
-```
-
 ### Value Categories
 
 Poly defines two value categories, according to whether they produce new symbols
 or not. An l-value, thus, refers to an expression that persists by introducing
 some symbol into the Active Scope. On the other hand, r-values do not introduce
 any new symbols to any scope, and thus do not persist beyond the point where
-they are declared. All identified declarations are l-values, as are assignments,
-while references and anonymous declarations are r-values.
+they are declared.
 
 It's notable that each construct, small as it might be, produces values of
 either one or the other category. Consider three constructs in the example
@@ -415,6 +392,31 @@ When either form of commenting immediately preceeds an expression, it will be
 considered associated with the expression that it preceeds. Specifically, for
 comments that are associated with l-values, the comment block is processed by
 the documentation engine, if one exists.
+
+### Object Mappings
+
+Throughout the document, some sections refer to Top-Level Declarations and
+Key-Value Mappings. Specifically, the Input, Output, and Exception declaration
+specifications. These concepts are related to whether objects are inline when
+passed to or returned by a procedure, meaning that they are either encoded as
+a key-value mapping, or as a top-level object.
+
+Key-Value Mappings are encoded as keys of some top-level object map. For
+example, given a model `Pet` with a field `name`, and the declaration `Pet pet`,
+the `pet` construct is encoded as a key-value mapping for that top-level object.
+For example, if the object was to be encoded in JSON, it would look like this:
+
+```
+{ "pet": { "name": "Poly" } }
+```
+
+By contrast, when referenced as a Top-Level Object, the declaration is not named
+and only the type (e.g. `Pet`) is used. In that case, the object is encoded
+according to the following:
+
+```
+{ "name": "Poly" }
+```
 
 ### Syntax
 
@@ -606,7 +608,7 @@ expression, otherwise causing the system to error.
 ### Fields
 
 ```
-field               =  field-type field-name modifier-list
+field               =  field-type field-name modifier-list / reference
 field-type          =  symbol
 field-name          =  symbol
 ```
@@ -639,9 +641,10 @@ string password sensitive ?
 ### Field Lists
 
 ```
-field-list          =  field-list-decl
-field-list          =/ field-list-decl ","
-field-list          =/ field-list-decl "," field-list
+field-list          = "{" field-list-items "}" 
+field-list-items    =  field-list-decl
+field-list-items    =/ field-list-decl ","
+field-list-items    =/ field-list-decl "," field-list-items
 field-list-decl     =  [ annotation ] field
 ```
 
@@ -682,16 +685,21 @@ parameter   =  location field / field
 
 Parameters extend on Fields by specifying the Location in which the field is to
 appear. This means that Parameters are constructs that are meant for use within
-the context of some API related declaration, such as Prodcedures. The Location
+the context of some API related declaration, such as Procedures. The Location
 appears first in the construct. When omitted, `body` is assumed as the default,
-saving some typing.
+saving some typing. The exception to this is when the field is declared by
+reference, and the reference is a field that declares a location of its own.
+In that case, the default is overriden by the reference, while the reference
+can be overriden by an explicit location.
+
 
 ### Parameter Lists
 
 ```
-parameter-list          =  parameter-list-decl
-parameter-list          =/ parameter-list-decl ","
-parameter-list          =/ parameter-list-decl "," parameter-list
+parameter-list          =  "{" parameter-list-items "}"
+parameter-list-items    =  parameter-list-decl
+parameter-list-items    =/ parameter-list-decl ","
+parameter-list-items    =/ parameter-list-decl "," parameter-list-items
 parameter-list-decl     =/ [ annotation ] parameter
 ```
 
@@ -702,7 +710,7 @@ attribute. All other considerations apply.
 ### Prototyping
 
 ```
-prototype   = ":" symbol
+prototype   = ":" reference
 ```
 
 Poly implements four declarative constructs that support prototype inheritance,
@@ -845,20 +853,6 @@ including methods. This happens because Poly enforces that child services be
 merely an extension of their parents, without any disregard for the contract
 that they promote.
 
-Anonymous prototyping is also supported. In this scenario, all of the same
-principles apply, except that the child entity is not named. Although this
-may appear useless, it's notable that the entity may still be an r-value for
-an assignment, meaning that it still has the pontential to become visible in
-the scope.
-
-```
-model : NewPet {
-    1: int32 id required,
-    2: NewPet.name,
-    3: NewPet.tag
-}
-```
-
 One final observation is that no declaration can inherit a prototype from a
 different type of declaration. That is, models inherit from models, services
 inherit from services, and so on, and the prototype chain must not be mixed.
@@ -866,65 +860,19 @@ inherit from services, and so on, and the prototype chain must not be mixed.
 ### Models
 
 ```
-model                   = "model" model-decl
-model-decl              = [ symbol ] [ prototype ] "{" field-list "}"
+model           = "model" model-decl
+model-decl      = symbol [ prototype ] field-list
 ```
 
 A Model declaration defines a complex data type constructed over Primitive types
 or other Models. Models can be used as input and ouput for procedures, as well
 as other situations where a data type is appropriate. Specifically, models can
-be used anywhere were a `symbol` appears in the grammar.
+be used anywhere were a `reference` appears in the grammar.
 
 When generating code, engines may generate classes and other data structures
 from models, as they are meant to represent structures that hold data. Models
 are not used to represent any form of encoding, and are rather an abstract
 representation of data graphs.
-
-Models can be identified or anonymous. When identified, a model explicitly
-indicates the symbol that becomes associated with the declaration, and, when
-anonymous, that association either does not exist or is achieved through an
-assignment. The following declarations are, thus, equivalent:
-
-```
-model Pet {
-    1: string name,
-    2: string tag
-}
-
-Pet = model {
-    1: string name,
-    2: string tag
-}
-```
-
-Therefore, model declarations return the entity that they declare, which is
-introduced in the active scope. This entity can be assigned to a symbol (e.g. a
-constant). If an identified model is also assigned, then the model can be
-referred in either way, but the names must not match, otherwise incurring in a
-violation of a repeated declaration for the same scope.
-
-```
-PetModel = model Pet {      // PetModel and Pet are equivalent
-    1: string name,
-    2: string tag
-}
-```
-
-A third option is to declare an anonymous model without any form of assignment,
-as examplified below. In this case, the model declaration is ineffective, and
-may be discarded by the engine (e.g. garbage collected), since it cannot be
-referrenced. More specifically, as the model is to be introduced in the scope,
-the scope discards it because it doesn't have a symbol for it, but it does not
-produce an error. This type of construct may be used during the design and
-development stages, or to flag models that are intented for future reviews of
-the API.
-
-```
-model {
-    1: string name,
-    2: string tag
-}
-```
 
 The use of curly braces is indicative of a declaration space that is pushed onto
 the declaration space stack. Therefore, names that are declared in this space do
@@ -934,7 +882,7 @@ symbol `name` do not conflict with each other, since they live in different
 declaration spaces.
 
 ```
-name = ...;             // Some declaration...
+name = ...              // Some declaration...
 
 model Pet {
     1: string name      // No conflict
@@ -944,6 +892,157 @@ model NewPet {
     1: string name      // Still no conflict
 }
 ```
+
+### Input
+
+```
+input                   =  "in" input-decl
+input-decl              =  symbol input-decl-options
+input-decl-options      =  reference [ prototype ] [ parameter-list ]
+input-decl-options      =/ prototype [ parameter-list ]
+input-decl-options      =/ parameter-list
+```
+
+The `in` keyword is used to declare constructs that are used as input to
+procedures. The expression accepts a Reference that is used as a Top-Level
+Declaration and a Parameter List that specifies a Key-Value Mapping. The
+Top-Level declaration does not accept a Location specifier, since it always
+refers to `body`.
+
+It's notable that both the Top-Level Declaration Reference and the Parameter
+List can be specified together, in which case the Parameter List adds to the
+`body` declaration introduced by the Top-Level Declaration. That is, besides
+that declaration being introduced in the body, other declarations from the
+Parameter List are added to the specification.
+
+When that happens, any Parameter with the `body` modifier is illegal in the
+context of the Parameter List, since the body is already explicitly defined.
+In the example below, the `Authorization` declaration further specifies that
+the Input declaration is to accept an `Authorization` header, besides the `Pet`
+argument that is already passed in the body. The `owner_id` declaration,
+however, is illegal, since it might create several symbol conflicts.
+
+```
+in PetIn Pet {
+    1: header string Authorization,     // Legal
+    2: body int32 owner_id              // Illegal, body already fully declared
+}
+```
+
+### Exception Annotations
+
+```
+exception-annotation    = +number [ "xx" ] ":"
+```
+
+An Exception Annotation is a type of annotation where the identifiers may
+include `xx` after an initial digit. This enables annotations such as `2xx`, to
+signify "any success HTTP response code", or `4xx`, meaning "any client error".
+Exception Annotations can be used to list response constructs that apply
+according to return codes, even specific codes, such as `201`.
+
+Although any non-empty sequence of numbers followed or not by `xx` is
+syntatically valid, only annotations that correspond in form to an HTTP status
+code, if `xx` was to be replaced by any two numeric digits, are semantically
+accepted by the interpreter. Any violation of this rule causes an error, with
+the indication that the annotation is not valid.
+
+### Exceptions
+
+```
+exception           =  exception-annotation exception-decl
+exception-decl      =  reference [ parameter-list ]
+exception-decl      =/ parameter-list
+```
+
+Exceptions consist of declarations of alternatives for Parameter Lists,
+according to the context of a given HTTP status code. As with the Input
+declaration, the expression accepts a Reference, representing a Top-Level
+Declaration, and a Parameter List, specifying a Key-Value Mapping. The Top-Level
+Declaration's Location attribute cannot be modified, and always refers to
+`body`.
+
+All other considerations for the Input construct also apply. When a Reference
+is present, `body` declarations in the Parameter List are illegal, but, if
+omitted, any number of `body` Parameters may appear, in which case the
+attributes are passed as Key-Value mappings instead.
+
+It's notable that Exceptions do not support Prototyping.
+
+### Output
+
+```
+output                  =  "out" output-decl
+output-decl             =  symbol [ prototype ] output-decl-options
+output-decl-options     =  reference [ parameter-list ]
+output-decl-options     =/ parameter-list
+```
+
+
+
+```
+out PetOut Pet {                // Default 2xx
+    4xx: .ClientError,
+    5xx: .ServerError
+}
+
+out PetOut Pet {
+    2xx: Pet,                   // Error, body is already specified
+    4xx: .ClientError,
+    5xx: .ServerError
+}
+
+out PetOut {
+
+    2xx: Pet {
+        1: header string Authorization
+    },
+
+    4xx: {
+
+    },
+
+    5xx: .ServerError
+}
+
+out PetOut {
+    2xx: {
+
+    },
+}
+
+
+```
+
+
+
+
+
+### Procedures
+
+```
+```
+
+Normal declaration:
+
+```
+out PetOut {
+    1: Pet pet
+}
+```
+
+Short version declares top-level:
+
+```
+out PetOut Pet;
+```
+
+
+
+
+
+
+
 
 ### Verbs
 
@@ -977,55 +1076,9 @@ revisions. The excluded verbs are the following:
 
 * All WebDAV extensions.
 
-### Input
-
-```
-input           = "in" input-decl
-input-decl      = [ symbol ] [ prototype ] "{" parameter-list "}"
-```
-
-The `in` keyword can be used to specify input parameters for a given construct,
-mostly Prodecures.
 
 
-"Normal" (or explicit) declaration:
 
-```
-in PetIn {
-    1: Pet pet
-}
-```
 
-"Short" version declares top-level:
+TODO Declarations that are not present in the API specification have no effect.
 
-```
-in PetIn Pet;
-```
-
-### Output
-
-```
-output                  = "out" output-decl
-output-decl             = output-decl-toplevel / output-decl-explicit
-output-decl-toplevel    = symbol symbol
-output-decl-explicit    = [ symbol ] [ prototype ] "{" parameter-list "}"
-```
-
-### Procedures
-
-```
-```
-
-Normal declaration:
-
-```
-out PetOut {
-    1: Pet pet
-}
-```
-
-Short version declares top-level:
-
-```
-out PetOut Pet;
-```
