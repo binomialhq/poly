@@ -651,7 +651,8 @@ field-list-decl     =  [ annotation ] field
 A Field List is a non-empty sequence of annotated Fields separated by commas,
 and optionally terminated by an additional comma (for convenience). It's also
 possible that the are not present at all, with the implication that the
-declaration might not be supported by some tools.
+declaration might not be supported by some tools. Field Lists push a new Scope
+into the symbol space.
 
 ### Location
 
@@ -705,7 +706,8 @@ parameter-list-decl     =/ [ annotation ] parameter
 
 A Parameter List declaration is identical to a Field List in every way but one:
 that each element of the list is a Parameter, and thus introduces a Location
-attribute. All other considerations apply.
+attribute. All other considerations apply. Parameter Lists push a new scope
+into the symbol space.
 
 ### Prototyping
 
@@ -874,25 +876,6 @@ from models, as they are meant to represent structures that hold data. Models
 are not used to represent any form of encoding, and are rather an abstract
 representation of data graphs.
 
-The use of curly braces is indicative of a declaration space that is pushed onto
-the declaration space stack. Therefore, names that are declared in this space do
-not conflict with names from the parent scope, with the notable exception of the
-Primitive Space. The example below shows how three declarations of the same
-symbol `name` do not conflict with each other, since they live in different
-declaration spaces.
-
-```
-name = ...              // Some declaration...
-
-model Pet {
-    1: string name      // No conflict
-}
-
-model NewPet {
-    1: string name      // Still no conflict
-}
-```
-
 ### Input
 
 ```
@@ -968,6 +951,18 @@ omitted, any number of `body` Parameters may appear, in which case the
 attributes are passed as Key-Value mappings instead.
 
 It's notable that Exceptions do not support Prototyping.
+
+### Exception List
+
+```
+exception-list          =  "{" exception-list-items "}"
+exception-list-items    =  exception
+exception-list-items    =/ exception ","
+exception-list-items    =/ exception "," exception-list-items
+```
+
+Exception Lists introduce lists of Exceptions. As common with lists of the
+same kind, they push a new Scope into the symbol space.
 
 ### Output
 
