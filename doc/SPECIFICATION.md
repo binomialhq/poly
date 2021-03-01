@@ -150,6 +150,7 @@ constructs. No specific form of encoding is assumed.
 LETTER      = [a-zA-Z]      ; US-ASCII letters
 DECIMAL     = [0-9]         ; US-ASCII numbrers 0 through 9
 SPACE       = \s            ; US-ASCII space [\u0085\t\r\n\v\f]
+HEXDIGIT    = [0-9A-F]      ; Hexadecimal digit
 ULETTER     = \p{L}         ; Any Unicode L-category code point
 UDECIMAL    = \p{Nd}        ; Any Unicode Nd-category code point
 USPACE      = \p{Z}         ; Any Unicode Z-category code point
@@ -158,9 +159,9 @@ USPACE      = \p{Z}         ; Any Unicode Z-category code point
 Implementations may decide to support L-category characters in combination with
 M-category markers. Although the `ULETTER` declaration does recognize diacritics
 when encoded together as a single code point, it also fails to recognize them
-if the two are encoded separately. For example, `à` can be encoded as `U+00E0`
+if they are encoded separately. For example, `à` can be encoded as `U+00E0`
 or as `U+0061 U+0300`. The former encodes `à` as a single code point, while the
-latter encodes `a` followed by the accent modifier. In order to support
+latter encodes `a` followed by the accent modifier `U+0300`. In order to support
 modifiers, the engine may replace the `ULETTER` declaration above:
 
 ```
@@ -173,21 +174,14 @@ a set of extra characters. This set includes the Unicode characters `U+005F`
 symbols such as `User-Agent` and `_tcp` to be defined.
 
 ```
-EXTRA   = [\u005F\u2010]
+EXTRA       = [\u005F\u2010]
 ```
 
 Several non-terminals are also defined for reuse throughout this specification.
-This set specifies the basic glyphs that can be processed by the engine. As per
-this specification, engines should support Unicode. The notable exception is
-the `number` declaration, which discards numeral systems other than the
-Hindu-Arabic. This is most unfortunately left out of the specification due to
-one's own lack of knowledge in other numeral systems, an issue that should be
-addressed in future revisions.
 
 ```
 letter      = ULETTER / EXTRA
 decimal     = UDECIMAL
-number      = DECIMAL
 word        = letter *(letter / decimal)
 ```
 
@@ -216,7 +210,7 @@ Space is generally ignored by the engine unless indicated otherwise. However,
 it's notable that "space" is defined as "US-ASCII space", and not the broader
 `USPACE` declaration with Unicode support. In fact, it's recommended that the
 engine triggers warnings for code points that match `USPACE` but not `SPACE`,
-when not in a context that indicates that space is not to be ignored.
+when in a context where space is to be ignored.
 
 ### Symbols
 
@@ -232,25 +226,26 @@ symbol-simple   = letter *( letter / decimal )
 symbol-quoted   = DQUOTE *( *NOTDQUOTE [ ESCAPED ] ) DQUOTE
 ```
 
-A Symbol is a name that appears as the name of some declaration. For example,
-in the declaration `model Pet`, `Pet` is the symbol, or name, that can be used
-to refer to the model being declared. Several constructs accept symbols as a
-means of identification.
+A Symbol is a name that appears as the identifier of some declaration. For
+example, in the declaration `model Pet`, `Pet` is the symbol, or name, that can
+be used to refer to the model being declared. Several constructs accept symbols
+as a means of identification.
 
-Symbols may also be quoted, so that characters that do not fit this definition
-can be used. For example, the declaration `model "ASN.1"` is valid, and declares
-a symbol called `ASN.1`, discarding the quotes.
+Symbols may also be quoted, in which case they can also be refered to as Quoted
+Symbols. Quoted Symbols enable characters that do not fit in the Symbol
+specification to be used. For example, the declaration `model "ASN.1"` is valid,
+and declares a symbol called `ASN.1`, discarding the quotes.
 
-Any reference to a quoted symbol must be provided exactly as the original
-declaration, including Space. This means that quoted symbols may be hard to
+Any reference to a Quoted Symbol must be provided exactly as the original
+declaration, including Space. This means that Quoted Symbols may be hard to
 read, and thus their usage is discouraged, unless under extraordinary and
 justified circumstances. How to handle multi-line strings is an open issue.
 
 ### Scopes
 
-Several Poly declarations introduce new symbols to the symbol space. How and
-where these symbols are declared bears significance as to where the symbols are
-made visible. The symbol space is composed of a stack of scopes, each of which
+Several Poly declarations introduce new symbols to a symbol space. How and where
+these symbols are declared bears significance as to where the symbols are made
+visible. The symbol space is composed of a stack of scopes, each of which
 defining its own symbols. For the purposes of name resolution, Poly defines two
 default scopes and a system for introducing new ones.
 
@@ -283,18 +278,180 @@ scope must also fail with an error, with an indication that the declaration is
 duplicated.
 
 Finally, the Primitive Space is one in which symbols are always visible and
-cannot be overloaded. Symbols declared in this space, thus, may not be
-overloaded, making it ideal to declare names that are reserved by the system.
-If the name of a primitive is redeclared, in any context, the system must fail
-with an error. If the name of a primitive is referenced, then it can only refer
-to the primitive with that name. This can be implemented by always starting the
-lookup process with the Primitive Space.
+cannot be overloaded. This is the ideal space to declare names that are reserved
+by the system. If the name of a primitive is redeclared, in any context, the
+system must fail with an error. If the name of a primitive is referenced, then
+it can only refer to the primitive with that name. This can be implemented by
+always starting the lookup process with the Primitive Space.
+
+### Value Categories
+
+Poly defines two value categories, according to whether they produce new symbols
+or not. An l-value, thus, refers to an expression that persists by introducing
+some symbol into the Active Scope. On the other hand, r-values do not introduce
+any new symbols to any scope, and thus do not persist beyond the point where
+they are declared.
+
+It's notable that each construct, small as it might be, produces values of
+either one or the other category. Consider three constructs in the example
+below. The quoted symbol "ASN.1" and the scope delimited by curly braces are
+r-values since they do not introduce any symbols. This may seem counterintuitive
+because the quoted symbol is a Symbol, but it is in fact the `model` expression
+that declares it, and thus the `model` expression is the one that is an l-value.
+
+```
+model "ASN.1" {
+
+}
+```
+
+### Comments
+
+```
+ENDLINE             = .*$           ; Anything up to EOL
+MULTILINE           = (?!\*\/)*     ; Anything except "*/", multiline
+```
+
+```
+comment             = comment-single / comment-multiple
+comment-single      = "//" ENDLINE
+comment-multiple    = "/*" MULTILINE "*/"
+```
+
+Poly supports C-style comments in both single-line and multi-line forms. That
+is, comments can be started by a double forward slash (`//`) and span until the
+end of the line, or by the multi-line start sequence (`/*`) and span multiple
+lines until the multi-line end sequence (`*/`). In either case, the span area
+is ignored by the interpreter. Multi-line nested comments are not allowed.
+
+### Object Mappings
+
+Throughout the document, some sections refer to Top-Level Declarations and
+Key-Value Mappings. These concepts are related to whether objects are inline
+when passed to or returned by a procedure, meaning that they are either encoded
+as a key-value mapping, or as a top-level object.
+
+Key-Value Mappings are encoded as keys of some top-level object map. For
+example, given a model `Pet` with a field `name`, and the declaration `Pet pet`,
+the `pet` value is encoded as a key-value mapping for that top-level object;
+that is, if the object was to be encoded in JSON, it would look like this:
+
+```
+{ "pet": { "name": "Poly" } }
+```
+
+By contrast, when referenced as a Top-Level Object, the declaration is not named
+and only the type (e.g. `Pet`) is used. In that case, the object is encoded
+according to the following, if it were to be encoded in JSON as well:
+
+```
+{ "name": "Poly" }
+```
+
+### Syntax
+
+```
+syntax      = "syntax" +decimal
+```
+
+The Syntax declaration indicates the version of the Poly IDL that the file is
+using. The practical consequence is having the engine select the appropriate
+parser and rule set to process and interpret the input. This declaration is
+required and must be the first non-empty and non-comment line in the file.
+
+There's only one version number currently supported, and that's `0` (zero). This
+version does not guarantee the continuity of any of its constructs, and thus
+future revisions may not be compatible. The following table summarizes version
+numbers, for future reference:
+
+| API Version | Description                            |
+|-------------|----------------------------------------|
+| 0           | The syntax described in this document. |
+
+The version number may have future implications with regard to importing other
+files and external declarations. When a file imports another, their versions can
+only compare in one of three ways:
+
+* The imported file declares a higher syntax version. In this case, if the
+engine supports the version, it should be interpreted according to that. If not,
+the engine must fail with an error (e.g. "unsupported version");
+
+* The imported file declares a lower syntax version. In this case, the
+interpreter must support the version, the implication being that each engine
+is capable of interpreting all of the previous versions;
+
+* The versions match, in which case no issue exists.
+
+It’s notable that versions need not have backwards compatibility, other than
+this declaration being the first on the file. That’s a perpetual requirement.
+
+### Primitives
+
+```
+native              = "native" native-decl
+native-decl         = word / native-array-decl
+native-array-decl   = "[" word "," "..." "]"
+```
+
+Primitives are data types that must be natively supported by the engine. A
+primitive is declared with the `native` keyword. If some declared primitive is
+not understood by the engine, the engine must fail the process with an error.
+Although primitives can be declared in any file (e.g. they are syntactically
+valid), declaring primitives that are not supported by the engine will cause
+general failure, and thus doing so is not recommended.
+
+Primitive declarations introduce symbols in the Primitive Space. If the symbol
+already exists in the Primitive Space (e.g the declaration is repeated), the
+engine must fail with an error.
+
+Primitives are not declared on every file, but on a standard declaration space
+that is included implicitly by the engine. How that space is declared is up to
+the implementation, and interpreters may decide to have a file physically
+allocated on persistent memory, but are not required to do so. However, whatever
+declarations are found there should be effective; that is, if a declaration is
+not present, then the engine must not recognize it. The supported primitives are
+summarized as follows:
+
+| Primitive    | Description                                 |
+|--------------|---------------------------------------------|
+| i32, int32   | Signed 32-bit integer.                      |
+| i64, int64   | Signed 64-bit integer.                      |
+| float        | Floating point value.                       |
+| double       | Floating point value with double precision. |
+| string       | To be determined.                           |
+| wstring      | To be determined.                           |
+| void         | No type.                                    |
+| [array, ...] | An heterogeneous collection of entities.    |
+
+Unsigned integers are not supported because (1) Poly does not introduce any
+concerns regarding validation and (2) those are not supported by every platform.
+
+The string and wstring types are still under analysis. The general idea is to
+support Unicode, but neither of these types is coupled with that concept. The
+main idea is to make `string` an abstract metatype that can represent any
+collection of characters.
+
+The name `array` in the standard declaration doesn't mean anything, and it is
+not a reserved keyword. `[T, ...]`, for example, is also valid and the two are
+semantically equivalent. Engines must not make a distinction of the chocie of
+this name.
+
+Arrays are heterogenous but only if declared that way. A `[Pet]` declaration,
+for example, denotes "an array of `Pet` objects", but nothing else. The ellipsis
+symbol signifies a repetition, meaning that declarations such as `[Pet, Error]`
+are possible, denoting a mixed array of `Pet` and `Error` objects.
+
+The `void` primitive cannot be used to declare Symbols. Rather, it's sometimes
+used to override some Reference, indicating that the Reference does not apply
+in a certain context. Attempts to declare a `void` type must result in a
+semantic error.
 
 ### References
 
 ```
-reference           =  ["."] symbol
-reference           =/ symbol "." reference
+reference       =  [ "." ] reference-decl
+reference-decl  =  symbol
+reference-decl  =/ symbol "." reference-decl
 ```
 
 References consist of a way to refer to symbols whatever the scope that declares
@@ -304,21 +461,21 @@ the same semantic entity is used, the referrer inherits all properties of the
 reference, including type, modifiers, and any other attributes. This enables
 the reuse of declarations without having to explicitly rewrite all the details.
 
-The lookup for the first component of a reference list follows the same process
-as described before. This means that the symbol is looked up first in the Active
-Space, and then successfully traced by the other scopes on the stack. This also
+The lookup for the first component of a reference follows the same process as
+described before. This means that the symbol is looked up in the Active Space
+first, and then successfully traced by the other scopes on the stack. This also
 applies if that's the only symbol in the list. For symbols that appear on the
 list after that, the lookup does not backtrace, and instead only looks for the
 symbol in the scope that is referenced up to that point. Therefore, the lookup
 `Service.Model.Field` looks for `Service` using the previous method and
-`Model.Field` only within the context of that first scope.
+`Model.Field` only within the context of that first scope, if any.
 
 It's notable that this scheme may create ambiguities. The example that follows
 shows an ambiguous lookup for `PetStore`, which happens because the symbol
-exists both in the Active and the Global Space scopes. This means that both
-declarations can be referenced in the same way, hence the ambiguity. In this
-case, the `Veterinary.PetStore` construct is the right choice for the engine,
-since it lives closer to the scope where the symbol is being referenced.
+exists both in the Active Space and the Global Space scopes. This means that
+both declarations can be referenced in the same way, hence the ambiguity. In
+this case, the `Veterinary.PetStore` construct is the right choice for the
+engine, since it lives closer to the scope where the symbol is being referenced.
 
 ```
 service PetStore {
@@ -348,190 +505,28 @@ Space would be `.PetStore.Pet`. This forces the engine to begin the lookup from
 the bottommost scope. Thus, a dot at the beginning triggers full backtracking
 before the lookup is performed, down to the Global Space.
 
-### Value Categories
-
-Poly defines two value categories, according to whether they produce new symbols
-or not. An l-value, thus, refers to an expression that persists by introducing
-some symbol into the Active Scope. On the other hand, r-values do not introduce
-any new symbols to any scope, and thus do not persist beyond the point where
-they are declared.
-
-It's notable that each construct, small as it might be, produces values of
-either one or the other category. Consider three constructs in the example
-below. The quoted symbol "ASN.1" and the scope delimited by curly braces are
-r-values since they do not introduce any symbols. This may seem counterintuitive
-because the quoted symbol is a symbol, but it is in fact the `model` expression
-that declares it, and thus the `model` expression is the one that is an l-value.
+### Type
 
 ```
-model "ASN.1" {
-
-}
+type                = type-simple / type-array
+type-simple         = reference
+type-array          = "[" type-array-list "]"
+type-array-list     = type
+type-array-list     = type "," type-array-list
 ```
 
-### Comments
+The Type construct is used in declarations that refer to a type that already
+exists, be that a Symbol or a Primitive. The Type construct must not be used
+in the context of a Symbol for a declaration that is introducing that Symbol.
 
-```
-ENDLINE             = .*$           ; Anything up to EOL
-MULTILINE           = (?!\*\/)*     ; Anything except "*/"
-```
-
-```
-comment                 = comment-single / comment-multiple
-comment-single          = "//" ENDLINE
-comment-multiple        = "/*" MULTILINE "*/"
-```
-
-Poly supports C-style comments in both single-line and multi-line forms. That
-is, comments can be started by a double forward slash (`//`) and span until the
-end of the line, or by the multi-line start sequence (`/*`) and span multiple
-lines until the multi-line end sequence (`*/`). In either case, the span area
-is ignored by the interpreter.
-
-When either form of commenting immediately preceeds an expression, it will be
-considered associated with the expression that it preceeds. Specifically, for
-comments that are associated with l-values, the comment block is processed by
-the documentation engine, if one exists.
-
-### Object Mappings
-
-Throughout the document, some sections refer to Top-Level Declarations and
-Key-Value Mappings. Specifically, the Input, Output, and Exception declaration
-specifications. These concepts are related to whether objects are inline when
-passed to or returned by a procedure, meaning that they are either encoded as
-a key-value mapping, or as a top-level object.
-
-Key-Value Mappings are encoded as keys of some top-level object map. For
-example, given a model `Pet` with a field `name`, and the declaration `Pet pet`,
-the `pet` construct is encoded as a key-value mapping for that top-level object.
-For example, if the object was to be encoded in JSON, it would look like this:
-
-```
-{ "pet": { "name": "Poly" } }
-```
-
-By contrast, when referenced as a Top-Level Object, the declaration is not named
-and only the type (e.g. `Pet`) is used. In that case, the object is encoded
-according to the following:
-
-```
-{ "name": "Poly" }
-```
-
-### Syntax
-
-```
-syntax      = "syntax" integer
-```
-
-The Syntax declaration indicates the version of the Poly IDL that the file is
-using. The practical consequence is having the parser select the appropriate
-engine to process and interpret the input. This declaration is required and
-must be the first non-empty and non-comment line in the file.
-
-There's only one version number currently supported, and that's "0" (zero). This
-version does not guarantee the continuity of any of its constructs, and thus
-future revisions may not be compatible. The following table summarizes version
-numbers, for future reference:
-
-| API Version | Description                            |
-|-------------|----------------------------------------|
-| 0           | The syntax described in this document. |
-
-The version number may have future implications with regard to importing other
-files and external declarations. When a file imports another, their versions can
-only compare in one of three ways:
-
-* The imported file declares a higher syntax version. In this case, if the
-engine supports the version, it should be interpreted according to that. If not,
-the engine must fail with an error (e.g. "unsupported version");
-
-* The imported file declares a lower syntax version. In this case, the
-interpreter must support the version, the implication being that each engine
-is capable of interpreting all of the previous versions;
-
-* The versions match, in which case no issue exists.
-
-It’s notable that versions need not have backwards compatibility, other than
-this declaration being the first on the file. That’s a perpetual requirement.
-
-A comment block that applies to the Syntax declaration is interpreted by the
-engine as file-level documentation. By applying to the document, this makes it
-the right place for documentation such as API versioning information.
-
-### Primitives
-
-```
-native              = "native" native-decl
-native-decl         = word / native-array-decl
-native-array-decl   = "[" word "," "..." "]"
-```
-
-Primitives are data types that must be natively supported by the engine. A
-primitive is declared with the `native` keyword. If some declared primitive is
-not understood by the engine, the engine must fail the process with an error.
-Although primitives can be declared in any file (e.g. they are syntactically
-valid), declaring primitives that are not supported by the engine will cause
-general failure, and thus that is not recommended.
-
-Primitive declarations introduce symbols in the Primitive Space, as declared by
-the `word` grammatical rule. If the symbol already exists in the Primitive Space
-(e.g the declaration is repeated), the engine must fail with an error.
-
-Primitives are not declared on every file, but on a standard declaration space
-that is included implicitly by the engine. How that space is declared is up to
-the implementation, and interpreters may decide to have a file physically
-allocated on persistent memory, but are not required to do so. However, whatever
-declarations are found there should be effective; that is, if a declaration is
-not present, then the engine must not recognize it.
-
-Primitives can also be assigned as any other form of expression, since any
-reference to them just returns their declaration. As per the example below,
-the assignment creates an alias for the primitive type, but the alias is not
-itself a primitive. The main difference is that type alias can be overriden by
-deeper declaration spaces, while primitives cannot. In other words, type alias
-are declared in the scope where they appear, and not in the Primitive Space.
-
-```
-i32 = int32;
-```
-
-The supported primitives are summarized as follows:
-
-| Primitive    | Description                                 |
-|--------------|---------------------------------------------|
-| int32        | Signed 32-bit integer.                      |
-| int64        | Signed 64-bit integer.                      |
-| float        | Floating point value.                       |
-| double       | Floating point value with double precision. |
-| string       | To be determined.                           |
-| wstring      | To be determined.                           |
-| [array, ...] | An heterogeneous collection of entities.    |
-
-It's still being considered whether the integer types have shorter versions
-abbreviated as `i32` and `i64`. Unsigned integers are not supported because (1)
-Poly is not capable of enforcing validation and (2) those are not supported by
-every platform.
-
-The string and wstring types are still under analysis. The general idea is to
-support Unicode, but neither of these types is coupled with that concept. The
-main idea is to make `string` an abstract metatype that can represent any
-collection of characters, which would be well aligned with the considerations
-above.
-
-The name `array` in the standard declaration doesn't mean anything, and it is
-not a reserved keyword. `[T, ...]`, for example, is also valid and the two are
-semantically equivalent.
-
-Arrays are heterogenous but only if declared that way. A `[Pet]` declaration,
-for example, denotes "an array of `Pet` objects", but nothing else. The ellipsis
-symbol signifies a repetition, meaning that declarations such as `[Pet, Error]`
-are possible, denoting a mixed array of `Pet` and `Error` objects.
+Types include arrays, which can be nested and refer to Quoted Symbols. The
+declaration `[.PetStore.Pet, [int32], "ASN.1"]`, for example, illustrates all
+three scenarios.
 
 ### Annotations
 
 ```
-annotation  = +number ":"
+annotation  = +decimal ":"
 ```
 
 Annotations associate expressions with a given numeric identifier, and can be
@@ -555,9 +550,9 @@ principle.
 When annotations appear in lists, specifically Field Lists and Parameter Lists,
 a mix of annotated and non-annotated entities is not allowed. Although such
 constructs are valid from a syntatic perspective, such scenario must not pass
-semantic validation, provoking an error that base being verified.
-
-
+semantic validation, otherwise provoking an error. The only exception to this
+is when the Reference being declared is `void`, in which case the Annotation
+must be omitted.
 
 As was clarified before, numbers with semantic meaning are only supported for
 the Hindu-Arabic numeral system, which is the case of annotations. Future
@@ -574,7 +569,7 @@ Modifiers can be `word`s, question marks (`?`), or exclamation marks (`!`), and
 cause some form of semantic change to the declaration. The `deprecated` keyword,
 for example, causes the field to be flagged as being deprecated. The question
 (`?`) and the exclamation (`!`) marks are special sugary constructs that mean
-`optional` and `required`, respectively. The following table summarizes the
+`optional` and `required`, respectively. The following table summarizes all
 recognized modifiers:
 
 | Modifier   | Description                 |
@@ -592,13 +587,6 @@ generators to use an obfuscation control, for example. More importantly, it can
 tell the deployment enviroment not to log this attribute, or not to broadcast
 it on the network.
 
-Modifiers are not reserved keywords, but rather any string that respects the
-`word` rule. This is motivated by future compatibility, since modifiers can be
-added to the language. However, this bears the consequence that modifiers can
-appear as quoted identifiers, which is syntatically valid, but not very useful.
-Regardless, if a modifier is known to the system it is also recognizable in its
-quoted version, and thus `sensitive` and `"sensitive"` are equivalent.
-
 The `required` and `optional` modifiers are mutually exclusively, as are their
 alias counterparts. The semantic value of the action is to flag an entity as
 being of a certain nature, and that nature cannot contradict itself. Therefore,
@@ -608,23 +596,21 @@ expression, otherwise causing the system to error.
 ### Fields
 
 ```
-field               =  field-type field-name modifier-list / reference
-field-type          =  symbol
-field-name          =  symbol
+field       =  type symbol modifier-list / reference
 ```
 
 A Field declares an attribute of some construct in which it appears, meaning
 that the purpose of a Field expression is only made clear when found within
 the scope of some other declaration. They are, however, l-value expressions,
-and introduce the symbol that they declare in the context in which they appear.
+and introduce the Symbol they declare in the context in which they appear.
 
-Fields have a type, a name, and zero or more modifiers. The type must correspond
+Fields have a Type, a name, and zero or more modifiers. The Type must correspond
 to either a Primitive or a Model, declared somewhere in the symbol space,
 causing an error that not being the case. These declarations, thus, associate a
 data type and modifiers with a given name, the same name that is to be used for
 symbol lookups.
 
-By default, fields are required. The explicit presence of the `required`
+By default, Fields are required. The explicit presence of the `required`
 modifier is redundant, unless some option is passed to the interpreter that
 changes the default (e.g. command line options).
 
@@ -650,9 +636,13 @@ field-list-decl     =  [ annotation ] field
 
 A Field List is a non-empty sequence of annotated Fields separated by commas,
 and optionally terminated by an additional comma (for convenience). It's also
-possible that the are not present at all, with the implication that the
-declaration might not be supported by some tools. Field Lists push a new Scope
-into the symbol space.
+possible that the annotations are not present at all, with the implication that
+the declaration might not be supported by some tools. Field Lists push a new
+Scope into the symbol space.
+
+When a Reference appears instead of a `type` and `symbol` pair, the Reference
+must refer to a Field declaration. It cannot refer to a Parameter, Model, or
+other types of constructs, otherwise provoking an engine error.
 
 ### Location
 
@@ -667,7 +657,7 @@ all available location modifiers:
 
 | Location | Description                                                 |
 |----------|-------------------------------------------------------------|
-| body     | The parameter is passed in the body.                        |
+| body     | The parameter is passed in the body of the request.         |
 | path     | The parameter is passed in the URL, in the path component.  |
 | query    | The parameter is passed in the URL, in the query component. |
 | header   | The parameter is passed as a header.                        |
@@ -676,23 +666,20 @@ all available location modifiers:
 `path` applies to parameterized endpoints, where the value of the attribute
 will replace some template variable. For example, if an expression declares
 some URL endpoint such as `items/{itemId}`, the template `itemId` would be
-replaced by the value in `path`. All other options should be clear.
+replaced by the value in `path`.
 
 ### Parameters
 
 ```
-parameter   =  location field / field
+parameter   =  [ location ] field
 ```
 
 Parameters extend on Fields by specifying the Location in which the field is to
-appear. This means that Parameters are constructs that are meant for use within
-the context of some API related declaration, such as Procedures. The Location
-appears first in the construct. When omitted, `body` is assumed as the default,
-saving some typing. The exception to this is when the field is declared by
-reference, and the reference is a field that declares a location of its own.
-In that case, the default is overriden by the reference, while the reference
-can be overriden by an explicit location.
-
+appear. When omitted, `body` is assumed as the default Location, saving some
+typing. The exception to this is when the field is declared by Reference, and
+the Reference is a field that declares a Location of its own. In that case, the
+default is overriden by the Reference, while the Reference can be overriden by
+an explicit Location.
 
 ### Parameter Lists
 
@@ -704,29 +691,28 @@ parameter-list-items    =/ parameter-list-decl "," parameter-list-items
 parameter-list-decl     =/ [ annotation ] parameter
 ```
 
-A Parameter List declaration is identical to a Field List in every way but one:
-that each element of the list is a Parameter, and thus introduces a Location
-attribute. All other considerations apply. Parameter Lists push a new scope
-into the symbol space.
+Parameter Lists are similar to Field Lists, except that each element of the list
+is a Parameter and that when References are used, they must refer to a Field or
+Parameter declaration. Referring to any other type of declaration must result in
+an error. All other considerations regarding Field Lists apply, including that
+the construct pushes a new stack into the symbol space.
 
 ### Prototyping
 
 ```
-prototype   = ":" reference
+prototype   = "from" reference
 ```
 
-Poly implements four declarative constructs that support prototype inheritance,
-namelly `service`, `model`, `in`, and `out`. When inheriting from a prototype,
-declarations implement all symbols declared by that prototype. Depending on the
-situation, that can be done explicitly or implicitly. Multiple inheritance is
-not supported, motivated by the Diamond Problem and the lack of support in
-several languages.
+When inheriting from a prototype, declarations implement all symbols declared
+by that prototype. Depending on the situation, that can be done explicitly or
+implicitly. Multiple inheritance is not supported, motivated by the Diamond
+Problem and the lack of support in several languages.
 
-When prototyping `model`, `in`, or `out` and using annotated declarations, the
-annotations are not inherited, and all fields must be explicitly listed in order
-to avoid conflicts. The example below, of model prototyping, illustrates what
-would happen if annotations were to be inherited, creating a conflict that the
-engine would not be capable of resolving.
+When prototyping and using annotated declarations, the annotations are not
+inherited, and all fields must be explicitly listed in order to avoid conflicts.
+The example below, of Model prototyping, illustrates what would happen if
+annotations were to be inherited, creating a conflict that the engine would not
+be capable of resolving.
 
 ```
 model NewPet {
@@ -734,7 +720,7 @@ model NewPet {
     2: string tag
 }
 
-model Pet: NewPet {
+model Pet from NewPet {
     1: int32 id required        // Conflict! Annotations match
 }
 ```
@@ -742,7 +728,7 @@ model Pet: NewPet {
 For that reason, all parent declarations (e.g. fields and parameters) must be
 explicitly referenced by the child, reassigning the annotations, otherwise
 incurring in the penalty of an error being indicated by the engine. The example
-below shows an error where the annotations are inherited but not explicitly
+below shows an error due to the annotations being inherited but not explicitly
 reassigned, changing the nature and the location of the error, in comparison
 to the previous example.
 
@@ -752,7 +738,7 @@ model NewPet {
     2: string tag
 }
 
-model Pet: NewPet {             // Error! "name" and "tag" are not declared
+model Pet from NewPet {             // Error! "name" and "tag" are not declared
     1: int32 id required
 }
 ```
@@ -760,7 +746,7 @@ model Pet: NewPet {             // Error! "name" and "tag" are not declared
 The example that follows illustrates the correct way for prototyping with
 annotations. Notably, all fields are listed, but only declared as References.
 Types, modifiers, and location attributes are inherited implicitly, and cannot
-be overloaded. Thus, the child field or parameter holds all properties of the
+be overloaded. Thus, the child Field or Parameter holds all properties of the
 corresponding parent, with the exception of the annotation itself. This enforces
 that changes made to the parent also reflect on the child, including `sensitive`
 and `deprecated` modifiers.
@@ -771,7 +757,7 @@ model NewPet {
     2: string tag required
 }
 
-model Pet: NewPet {
+model Pet from NewPet {
     1: int32 id required,
     2: NewPet.name,
     3: NewPet.tag
@@ -781,8 +767,8 @@ model Pet: NewPet {
 From a code generation perspective, generators may implement these constructs
 using strict inheritance, since the declarations respect the "is-a" relationship
 and, thus, the Liskov Substitution Principle. In fact, any context in which a
-parent is declared and a child is given in its place, the extra fields or
-parameters declared by the child should be discarded, and the entity processed
+parent is declared and a child is given in its place, the extra Fields or
+Parameters declared by the child should be discarded, and the entity processed
 according to the substitution principles. Not doing so is a violation of the
 declaration.
 
@@ -798,7 +784,7 @@ model NewPet {
     string tag required
 }
 
-model Pet: NewPet {        // Valid, since fields are not tagged
+model Pet from NewPet {             // Valid, since fields are not tagged
     int32 id required,
 }
 ```
@@ -813,7 +799,7 @@ model NewPet {
     2: string tag required
 }
 
-model Pet: NewPet {         // Valid, annotations are ignored
+model Pet from NewPet {             // Valid, annotations are ignored
     int32 id required
 }
 ```
@@ -827,37 +813,38 @@ model NewPet {
     string tag required
 }
 
-model Pet: NewPet {         // Valid, all fields are annotated
+model Pet from NewPet {             // Valid, all fields are annotated
     1: int32 id required,
     2: NewPet.name,
     3: NewPet.tag
 }
 ```
 
-Another key aspect of prototype inheritance is that if one parent field or
-parameter is declared explicitly then they all have to be. This works as a
-semantic construct to guarantee that all fields are properly handled, and that
-updates to the parent are visibly reflected in the child, rather than silently
-absorved.
+Another key aspect of prototype inheritance is that if one parent field is
+declared explicitly, then they all have to be. This works as a semantic
+guarantee that all fields are properly handled, and that updates to the parent
+are visibly reflected in the child, rather than silently absorved.
 
-None of this rationale applies to `service` declarations, however, since they
-don't implement annotations at all. For that reason, services don't need to
+None of this rationale applies to Service declarations, however, since they
+don't implement annotations at all. For that reason, Services don't need to
 explicitly declare inherited constructs, as the other prototypable entities do. 
 
 The main difference between these entities is that `model`, `in`, and `out` do
-not inherit the scope of their parents, while `service` inherits a copy. To be
-precise, when `model`, `in`, or `out` prototyping occurs, the scope must be
-redeclared with references to the same symbols, while `service` keeps a copy of
-the parent scope as a scope of its own.
+not inherit the scope of their parents, having the declarations copied instead.
+If the declarations are not annotated, it just so happens that that copy can be
+automatic. `service`, on the other hand, inherits a copy of the parent's scope.
+To be precise, when `model`, `in`, or `out` prototyping occurs, the scope must
+be redeclared with references to the same symbols, even if automatically, while
+`service` keeps a copy of the parent scope as a scope of its own.
 
-The practical consequence of this is that services cannot overload declarations,
-including methods. This happens because Poly enforces that child services be
+The practical consequence of this is that Services cannot overload declarations,
+including methods. This happens because Poly enforces that child Services be
 merely an extension of their parents, without any disregard for the contract
 that they promote.
 
 One final observation is that no declaration can inherit a prototype from a
-different type of declaration. That is, models inherit from models, services
-inherit from services, and so on, and the prototype chain must not be mixed.
+different type of declaration. That is, Models inherit from Models, Services
+inherit from Services, and so on, and the prototype chain must not be mixed.
 
 ### Models
 
@@ -866,10 +853,9 @@ model           = "model" model-decl
 model-decl      = symbol [ prototype ] field-list
 ```
 
-A Model declaration defines a complex data type constructed over Primitive types
-or other Models. Models can be used as input and ouput for procedures, as well
-as other situations where a data type is appropriate. Specifically, models can
-be used anywhere were a `reference` appears in the grammar.
+A Model declaration defines a complex data type constructed from Primitive types
+and other Models. Models can be used as input and ouput for procedures, as well
+as other situations where a data type is appropriate.
 
 When generating code, engines may generate classes and other data structures
 from models, as they are meant to represent structures that hold data. Models
@@ -881,41 +867,47 @@ representation of data graphs.
 ```
 input                   =  "in" input-decl
 input-decl              =  symbol input-decl-options
-input-decl-options      =  reference [ prototype ] [ parameter-list ]
+input-decl-options      =  [ annotation ] reference [ prototype ] [ parameter-list ]
 input-decl-options      =/ prototype [ parameter-list ]
 input-decl-options      =/ parameter-list
 ```
 
 The `in` keyword is used to declare constructs that are used as input to
-procedures. The expression accepts a Reference that is used as a Top-Level
+Procedures. The expression accepts a Reference that is used as a Top-Level
 Declaration and a Parameter List that specifies a Key-Value Mapping. The
-Top-Level declaration does not accept a Location specifier, since it always
-refers to `body`.
+Top-Level declaration does not accept a Location specifier, and always refers
+to `body`.
 
 It's notable that both the Top-Level Declaration Reference and the Parameter
 List can be specified together, in which case the Parameter List adds to the
-`body` declaration introduced by the Top-Level Declaration. That is, besides
-that declaration being introduced in the body, other declarations from the
-Parameter List are added to the specification.
-
-When that happens, any Parameter with the `body` modifier is illegal in the
-context of the Parameter List, since the body is already explicitly defined.
-In the example below, the `Authorization` declaration further specifies that
-the Input declaration is to accept an `Authorization` header, besides the `Pet`
-argument that is already passed in the body. The `owner_id` declaration,
-however, is illegal, since it might create several symbol conflicts.
+`body` declaration introduced by the Top-Level Declaration. When that happens,
+any Parameter with the `body` modifier is illegal in the context of the
+Parameter List, since the body is already explicitly defined. In the example
+below, the `Authorization` declaration further specifies that the Input
+declaration is to accept an `Authorization` header, besides the `Pet` argument
+that is already passed in the body. The `owner_id` declaration, however, is
+illegal, since it might create several symbol conflicts.
 
 ```
 in PetIn Pet {
-    1: header string Authorization,     // Legal
-    2: body int32 owner_id              // Illegal, body already fully declared
+    body int32 owner_id                 // Illegal, body already fully declared
+}
+```
+
+An optional Annotation can also be given for the Top-Level declaration. In that
+case, if a matching Annotation is given in the Parameter List, the engine must
+fail with an error, since the Annotation has already been specified.
+
+```
+in PetIn 1:Pet {
+    1: header string Authorization      // Error, annotation already specified
 }
 ```
 
 ### Exception Annotations
 
 ```
-exception-annotation    = +number [ "xx" ] ":"
+exception-annotation    = +decimal [ "xx" ] ":"
 ```
 
 An Exception Annotation is a type of annotation where the identifiers may
@@ -934,23 +926,27 @@ the indication that the annotation is not valid.
 
 ```
 exception           =  exception-annotation exception-decl
-exception-decl      =  reference [ parameter-list ]
+exception-decl      =  [ annotation ] type [ parameter-list ]
 exception-decl      =/ parameter-list
 ```
 
 Exceptions consist of declarations of alternatives for Parameter Lists,
 according to the context of a given HTTP status code. As with the Input
-declaration, the expression accepts a Reference, representing a Top-Level
-Declaration, and a Parameter List, specifying a Key-Value Mapping. The Top-Level
-Declaration's Location attribute cannot be modified, and always refers to
-`body`.
+declaration, the expression accepts a Type, representing a Top-Level
+Declaration, and a Parameter List, specifying a Key-Value Mapping. The
+Top-Level Declaration's Location attribute cannot be modified, and always
+refers to the body. The example that follows illustrates one such construct.
 
-All other considerations for the Input construct also apply. When a Reference
-is present, `body` declarations in the Parameter List are illegal, but, if
-omitted, any number of `body` Parameters may appear, in which case the
-attributes are passed as Key-Value mappings instead.
+```
+2xx: 1:[Pet] {
+    2: header string Authorization
+}
+```
 
-It's notable that Exceptions do not support Prototyping.
+Other considerations for the Input construct also apply. When a Reference is
+present, `body` declarations in the Parameter List are illegal, but, if omitted,
+any number of `body` Parameters may appear, in which case the attributes are
+passed as Key-Value Mappings instead.
 
 ### Exception List
 
@@ -961,94 +957,140 @@ exception-list-items    =/ exception ","
 exception-list-items    =/ exception "," exception-list-items
 ```
 
-Exception Lists introduce lists of Exceptions. As common with lists of the
+Exception Lists introduce lists of Exceptions. As is common with lists of the
 same kind, they push a new Scope into the symbol space.
 
 ### Output
 
 ```
 output                  =  "out" output-decl
-output-decl             =  symbol [ prototype ] output-decl-options
-output-decl-options     =  reference [ parameter-list ]
-output-decl-options     =/ parameter-list
+output-decl             =  symbol output-decl-options
+output-decl-options     =  [ annotation ] type [ prototype ] [ exception-list ]
+output-decl-options     =/ prototype [ exception-list ]
+output-decl-options     =/ exception-list
 ```
 
-
+Ouput declarations define output models with associated HTTP return codes. The
+declaration allows for a Reference to define the Top-Level Model that is to be
+sent with the body for success responses, while also listing Exceptions for
+other specific HTTP status codes. In the example below, the declaration defines
+`Pet` as the top-level body parameter and a `ServerError` as a top-level entity
+for responses that indicate server errors.
 
 ```
-out PetOut Pet {                // Default 2xx
-    4xx: .ClientError,
-    5xx: .ServerError
-}
-
 out PetOut Pet {
-    2xx: Pet,                   // Error, body is already specified
-    4xx: .ClientError,
     5xx: .ServerError
 }
+```
 
-out PetOut {
+When a Reference declaration is given, it defaults to a `body` Location under a
+`2xx` Exception, meaning that the two declarations in the examples that follow
+are equivalent. In fact, the two must not be specified together, since that
+creates a conflicting declaration, given that the body is specified twice.
 
-    2xx: Pet {
-        1: header string Authorization
-    },
+```
+out PetOut Pet
+```
 
-    4xx: {
-
-    },
-
-    5xx: .ServerError
+```
+out PetOut {                    // Equivalent
+    2xx: Pet
 }
+```
 
-out PetOut {
+```
+out PetOut Pet {
+    2xx: Pet                    // Error, body is already specified
+}
+```
+
+```
+out PetOut Pet {
     2xx: {
-
-    },
-}
-
-
-```
-
-
-
-
-
-### Procedures
-
-```
-```
-
-Normal declaration:
-
-```
-out PetOut {
-    1: Pet pet
+        body Pet pet            // Error, body is already specified
+    }
 }
 ```
 
-Short version declares top-level:
+When declaring specific success status codes, however, the declaration can be
+overriden. In the example that follows, all success codes return a `Pet` object,
+while the `204` status code (No Content) returns nothing. This is valid because
+the Exception is more specific than the Top-Level declaration.
 
 ```
-out PetOut Pet;
+out PetOut Pet {
+    204: void
+}
 ```
 
+The same rationale applies to Top-Level Annotations. Given that the Top-Level
+declaration specifies a construct for the `2xx` Exception, the Annotation does
+not apply to other Exceptions, and thus the same Annotation can be repeated.
 
+```
+out PetOut 1:Pet {
+    204: void,                  // Annotation omitted for void
+    4xx: 1:.ClientError         // Annotations do not conflict
+}
+```
 
+### Templates
 
+```
+template    = "{" word "}"
+```
 
+Templates parameterize Universal Resource Identifiers (URI). For example, in
+the path `pets/{petId}`, `petId` is a template argument that is supposed to be
+replaced by a value in the path component of the URI.
 
+All values that are valid as per the `segment` specification in
+[RFC 3986](https://tools.ietf.org/html/rfc3986), including empty strings, are
+also valid as a replacement for templates. Notably, values that match `path`,
+as per the same RFC, are not valid, since those would potentially result in
+conflicting declarations. For example, if `petId` in, say, `/pets/{petId}` was
+to be replaced by `poly/attr`, it would create a conflict if a second rule was
+defined as `/pets/{petId}/attr`, in which case the substitution of `petId` with
+`poly` results in the same URI path component: `/pets/poly/attr`.
 
+### Path
+
+```
+path                    = *( "/" [ parameterized-segment ] )
+parameterized-segment   = *pchar [ template ] *pchar
+segment                 = *pchar
+pchar                   = unreserved / pct-encoded / sub-delims / ":" / "@"
+unreserved              = LETTER / DECIMAL / "-" / "." / "_" / "~"
+pct-encoded             = "%" HEXDIGIT HEXDIGIT
+sub-delims              = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+```
+
+A Path corresponds to a URI `path` component, as per secition 3.3 of the
+[RFC 3986](https://tools.ietf.org/html/rfc3986) specification, with the
+exception that paths must start with a forward slash (`/`), unlike the
+original RFC, which allows a path to begin with a segment. Paths can also
+be empty, in which case they correspond to the root document, without a
+trailing slash. If a single forward slash is given, then the path represents
+the root document with a trailing slash.
+
+It's notable that Poly makes a distinction (as it should) between paths that
+end with a trailing slash and those that don't. Therefore, the URIs `/pets`
+and `/pets/` correspond to different server endpoints.
+
+Not unlike the original RFC specification, paths consisting of a sequence of
+forward slashes, such as `///`, are valid paths. This is especially true given
+that paths can be parametrized by templates, since templates can be replaced
+by empty values.
 
 ### Verbs
 
 ```
-verb    =  word
+verb    = "GET" / "POST" / "PUT" / "DELETE" / "PATCH"
 ```
 
 A verb corresponds to the HTTP definition of a method, as defined by the
 HTTP/1.1 specification in [RFC 7231](https://tools.ietf.org/html/rfc7231),
-and indicates the purpose of a request. Verbs can be expressed in all lower
-or all upper case, but not in mixed case. The following verbs are supported:
+and indicates the purpose of a request. The following verbs are supported:
 
 * `GET`, `POST`, `PUT`, and `DELETE`
 ([RFC 7231](https://tools.ietf.org/html/rfc7231));
@@ -1059,7 +1101,7 @@ Several other verbs were left out of the specification, mostly because they
 are deprecated, not used, or not relevant in the context of this specification.
 However, some of such decisions are questionable. The `CONNECT` verb, for
 example, may bear relevancy in many cases. Therefore, it's reasonable to assume
-that the set of verbs excluded from the specification will be reviewed in future
+that the set of verbs excluded from the specification will change in future
 revisions. The excluded verbs are the following:
 
 * `OPTIONS`, `HEAD`, `TRACE`, and `CONNECT`
@@ -1071,9 +1113,70 @@ revisions. The excluded verbs are the following:
 
 * All WebDAV extensions.
 
+### Procedures
 
+```
+procedure       =  verb path procedure-in procedure-out
+prodecure-in    =  [ annotation ] type
+procedure-out   =  [ annotation ] type [ exception-list ]
+```
 
+Procedures represent server endpoints, and are associated with an HTTP method
+(or Verb) that indicates the type of action to take on a given resource. The
+resource is indicated by a Path, possibly parameterized, and the method by a
+Verb. The following example illustrates one such declaration:
 
+```
+GET /pets/ void 1:[Pet] {
+    4xx: ClientError,
+    5xx: ServerError
+}
+```
 
-TODO Declarations that are not present in the API specification have no effect.
+If either the `procedure-in` or the `procedure-out` constructs correspond to a
+Reference to Input or Output declarations, respectively, then those must not be
+annotated, otherwise causing the engine to raise an error.
 
+If either the `procedure-in` or the `procedure-out` constructs correspond to a
+Model Reference instead, then the Reference can be annotated, in which case it
+defines the Top-Level declaration for either the Input or Output declarations,
+respectively.
+
+A Procedure declaration accepts an Exception List as the last construct, in
+which case the list of Exceptions is added to the Output specification given.
+This behaves the same way as the Output declaration when produced with the `out`
+keyword, with the exception that the construct must not use Prototypes, and it
+does not introduce any symbol in symbol space.
+
+Procedures are r-values, and cannot be referenced in any way.
+
+### Future Work
+
+* How can the language support arbitrary key-value mappings? Currently, there's
+no way to specify an arbitrary object, in the sense that the keys are not well
+defined;
+
+* Are theyre any situations in which `void` can be annotated? If so, the
+description about annotations must be reviewed;
+
+* It should be said that declarations that are not present in an API
+specification are not a violation of the declaration. That is, services may
+implement methods beyond those declared;
+
+* The language should support abstract models, being of little consequence to
+the declarations, but while giving an indication to code generators that the
+model is not an actual model;
+
+* Multiple inheritance would greatly improve code reuse. Although many languages
+do not support multiple inheritance natively, there are ways in which code
+generators can work around this limitation;
+
+* Alternatives are not supported for I/O declarations. This means that the
+language cannot express constructs such as "I accept either A or B";
+
+* Consider validators as a way to ellaborate on what a given Template is
+supposed to accept. Validators can be regular or context-free;
+
+* This document is not final and several constructs are still being added to
+this specification. The major ones being considered are `group`, `rest`,
+`socket`, and `websocket`.
