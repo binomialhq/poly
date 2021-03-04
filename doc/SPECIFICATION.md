@@ -47,7 +47,7 @@ markers, provided by OpenAPI and RAML, respectively, mix, in our opinion,
 concepts that should not be mixed, that of an API specification and the location
 of some specific implementation of it. Poly proposes a strict separation of
 these concerns. The fact that Poly implements features that are not available
-in the alternatives, is rather explained by Poly attempting to consider a wider
+in the alternatives, is rather explained by its consideration for a wider
 variety of scenarios, as well as purpose-specific language constructs.
 
 From a syntatic point of view, Poly more closely resembles protobuf and Apache
@@ -113,7 +113,7 @@ generation and protocol stack translation, respectively.
 ## Purpose of This Document
 
 This document is meant as a formal description of the Poly language, by means
-of a context-free grammar expressed in augmented Backus-Naur Form (BNF). It is
+of a context-free grammar expressed in Augmented Backus-Naur Form (ABNF). It is
 not meant as a tutorial or gentle introduction to Poly, neither is it meant as
 a formal Request For Comment (RFC) or similar documents. This specification is
 not expected to formally define all requirements, in contradiction to the
@@ -237,7 +237,7 @@ specification to be used. For example, the declaration `model "ASN.1"` is valid,
 and declares a symbol called `ASN.1`, discarding the quotes.
 
 Any reference to a Quoted Symbol must be provided exactly as the original
-declaration, including space. This means that Quoted Symbols may be hard to
+declaration, including Space. This means that Quoted Symbols may be hard to
 read, and thus their usage is discouraged, unless under extraordinary and
 justified circumstances. How to handle multi-line strings is an open issue.
 
@@ -266,8 +266,8 @@ all scopes bellow it. Therefore, in the example above, the `model` declaration
 creates a new scope that will contain only the symbols therein defined. When
 this push happens, that scope becomes the Active Space.
 
-The symbol lookup system, then, begins by looking for a symbol in the current
-scope. Only if one is not found there, does the implementation look for the
+The symbol lookup system, then, begins by looking for a symbol in the Active
+Space. Only if one is not found there, does the implementation look for the
 same symbol in the scope that preceeds it in the stack. Therefore, scopes are
 searched in reverse depth-order, starting with the topmost entry. This creates
 an overloading effect.
@@ -358,11 +358,12 @@ syntax      = "syntax" +decimal
 The Syntax declaration indicates the version of the Poly IDL that the file is
 using. The practical consequence is having the engine select the appropriate
 parser and rule set to process and interpret the input. This declaration is
-required and must be the first non-empty and non-comment line in the file.
+required and must be the first non-empty and non-comment line in the file. It
+must not appear more than once per file either.
 
 There's only one version number currently supported, and that's `0` (zero). This
 version does not guarantee the continuity of any of its constructs, and thus
-future revisions may not be compatible. The following table summarizes version
+future revisions might not be compatible. The following table summarizes version
 numbers, for future reference:
 
 | API Version | Description                            |
@@ -395,11 +396,11 @@ native-array-decl   = "[" word "," "..." "]"
 ```
 
 Primitives are data types that must be natively supported by the engine. A
-primitive is declared with the `native` keyword. If some declared primitive is
-not understood by the engine, the engine must fail the process with an error.
-Although primitives can be declared in any file (e.g. they are syntactically
-valid), declaring primitives that are not supported by the engine will cause
-general failure, and thus doing so is not recommended.
+primitive is declared with the `native` keyword, if declared at all. If some
+declared primitive is not understood by the engine, the engine must fail the
+process with an error. Although primitives can be declared in any file (e.g.
+they are syntactically valid), declaring primitives that are not supported by
+the engine will cause general failure, and thus doing so is not recommended.
 
 Primitive declarations introduce symbols in the Primitive Space. If the symbol
 already exists in the Primitive Space (e.g the declaration is repeated), the
@@ -410,8 +411,9 @@ that is included implicitly by the engine. How that space is declared is up to
 the implementation, and interpreters may decide to have a file physically
 allocated on persistent memory, but are not required to do so. However, whatever
 declarations are found there should be effective; that is, if a declaration is
-not present, then the engine must not recognize it. The supported primitives are
-summarized as follows:
+not present, then the engine must not recognize it.
+
+The supported primitives are summarized as follows:
 
 | Primitive    | Description                                 |
 |--------------|---------------------------------------------|
@@ -534,19 +536,20 @@ Annotations associate expressions with a given numeric identifier, and can be
 used to create static indexes of elements. Annotations must be valid integers,
 meaning that leading zeros are removed, if they exist. Since other engines do
 not support zero as an index value, Poly doesn't either, and thus annotations
-consisting of all zeros constitute a semantic error.
+consisting of all zeros constitute a semantic error. Annotations are, therefore,
+one-indexed.
 
-The annotations do not necessarily dictate order, however, in the sense that
-the identifiers need not be sorted. In fact, the annotations are not processed
-by Poly, since they are meant for binary encodings.
+The annotations do not necessarily dictate order, in the sense that the
+identifiers need not be sorted. In fact, the annotations are not processed 
+Poly, since they are meant for binary encodings.
 
-Protobuf, for example, requires these in models, while Thrift also requires them
-in parameter declarations. One requirement that these two implementations share
-is the fact that assigning an annotation is a permanent action, in the sense
-that the number becomes reserved. Future revisions of the API must not reutilize
-them, and instead add new ones in case of need, while commenting out the ones
-that become deprecated. For the sake of compatibility, Poly adheres to this
-principle.
+Protobuf, for example, requires these in model fields, while Thrift also
+requires them in parameter declarations. One requirement that these two
+implementations share is the fact that assigning an annotation is a permanent
+action, in the sense that the number becomes reserved. Future revisions of the
+API must not reutilize them, and instead add new ones in case of need, while
+commenting out the ones that become deprecated. For the sake of compatibility,
+Poly adheres to this principle.
 
 When annotations appear in lists, specifically Field Lists and Parameter Lists,
 a mix of annotated and non-annotated entities is not allowed. Although such
@@ -554,7 +557,7 @@ constructs are valid from a syntatic perspective, such scenario must not pass
 semantic validation, otherwise provoking an error.
 
 Currently, annotations only support the Hindu-Arabic numeral system. This is
-justified by one's own lack of knowledge in other numeral systems, and their
+justified by one's own lack of knowledge of other numeral systems, and their
 use in a context where the numerals bear meaning. Future revisions should
 change this behaviour to span other numeral systems as well.
 
@@ -830,10 +833,10 @@ model Pet from NewPet {             // Valid, all fields are annotated
 }
 ```
 
-Another key aspect of prototype inheritance is that if one parent field is
+Another key aspect of prototype inheritance is that if one parent fields is
 declared explicitly, then they all have to be. This works as a semantic
 guarantee that all fields are properly handled, and that updates to the parent
-are visibly reflected in the child, rather than silently absorved.
+are visibly reflected on the child, rather than silently absorved.
 
 None of this rationale applies to Service declarations, however, since they
 don't implement annotations at all. For that reason, Services don't need to
@@ -841,7 +844,7 @@ explicitly declare inherited constructs, as the other prototypable entities do.
 
 The main difference between these entities is that `model`, `in`, and `out` do
 not inherit the scope of their parents, having the declarations copied instead.
-If the declarations are not annotated, it just so happens that that copy can be
+If the declarations are not annotated, it just so happens that the copy can be
 automatic. `service`, on the other hand, inherits a copy of the parent's scope.
 To be precise, when `model`, `in`, or `out` prototyping occurs, the scope must
 be redeclared with references to the same symbols, even if automatically, while
@@ -900,6 +903,7 @@ illegal, since it might create several symbol conflicts.
 
 ```
 in PetIn Pet {
+    header string Authorization,
     body int32 owner_id                 // Illegal, body already fully declared
 }
 ```
@@ -1075,7 +1079,7 @@ pct-encoded             = "%" HEXDIGIT HEXDIGIT
 sub-delims              = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
 ```
 
-A Path corresponds to a URI `path` component, as per secition 3.3 of the
+A Path corresponds to a URI `path` component, as per section 3.3 of the
 [RFC 3986](https://tools.ietf.org/html/rfc3986) specification, with the
 exception that paths must start with a forward slash (`/`), unlike the
 original RFC, which allows a path to begin with a segment. Paths can also
@@ -1126,9 +1130,9 @@ revisions. The excluded verbs are the following:
 ### Procedures
 
 ```
-procedure       =  verb path procedure-in procedure-out
-prodecure-in    =  [ annotation ] type
-procedure-out   =  [ annotation ] type [ exception-list ]
+procedure       = verb path procedure-in procedure-out
+prodecure-in    = [ annotation ] type
+procedure-out   = [ annotation ] type [ exception-list ]
 ```
 
 Procedures represent server endpoints, and are associated with an HTTP method
@@ -1156,9 +1160,34 @@ A Procedure declaration accepts an Exception List as the last construct, in
 which case the list of Exceptions is added to the Output specification given.
 This behaves the same way as the Output declaration when produced with the `out`
 keyword, with the exception that the construct must not use Prototypes, and it
-does not introduce any symbol in symbol space.
+does not introduce any symbol in the symbol space.
 
 Procedures are r-values, and cannot be referenced in any way.
+
+### Group Annotations
+
+```
+group-annotation    = word ":"
+```
+
+Group Annotations work as other types of Annotations, in the sense that they
+provide an identifier for the declaration that follows them. The key difference
+is that Group Annotations are not numeric, but rather `word`s.
+
+### Groups
+
+```
+
+group FooBar {
+
+    list: GET /pets/ void [Pet],
+
+    create: PUT /pets/ NewPet Pet,
+
+    
+}
+
+```
 
 ### Future Work
 
