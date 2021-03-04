@@ -41,14 +41,14 @@ It must be said that Poly supports a disjoint (yet overlapping) set of features
 from those of RAML and OpenAPI, in the sense that neither is strictly a superset
 of the other two. In other words, Poly does not support all features offered by
 OpenAPI or RAML, nor do those support all features proposed by Poly. The former
-is easily explained by the fact that Poly attempts to consider a wider variety
-of scenarios, as well as purpose-specific language constructs. The latter, on
-the other hand, can be explained by observing that not all constructs offered
-by the alternatives directly relate to API specifications, such as `servers`
-and `baseUri`. These markers, provided by OpenAPI and RAML, respectively, mix,
-in our opinion, concepts that should not be mixed, that of an API specification
-and the location of some specific implementation of it. Poly proposes a strict
-separation of these concerns.
+is explained by observing that not all constructs offered by the alternatives
+directly relate to API specifications, such as `servers` and `baseUri`. These
+markers, provided by OpenAPI and RAML, respectively, mix, in our opinion,
+concepts that should not be mixed, that of an API specification and the location
+of some specific implementation of it. Poly proposes a strict separation of
+these concerns. The fact that Poly implements features that are not available
+in the alternatives, is rather explained by Poly attempting to consider a wider
+variety of scenarios, as well as purpose-specific language constructs.
 
 From a syntatic point of view, Poly more closely resembles protobuf and Apache
 Thrift. In fact, many linguistic constructs are inspired by those. The key
@@ -237,7 +237,7 @@ specification to be used. For example, the declaration `model "ASN.1"` is valid,
 and declares a symbol called `ASN.1`, discarding the quotes.
 
 Any reference to a Quoted Symbol must be provided exactly as the original
-declaration, including Space. This means that Quoted Symbols may be hard to
+declaration, including space. This means that Quoted Symbols may be hard to
 read, and thus their usage is discouraged, unless under extraordinary and
 justified circumstances. How to handle multi-line strings is an open issue.
 
@@ -282,7 +282,8 @@ cannot be overloaded. This is the ideal space to declare names that are reserved
 by the system. If the name of a primitive is redeclared, in any context, the
 system must fail with an error. If the name of a primitive is referenced, then
 it can only refer to the primitive with that name. This can be implemented by
-always starting the lookup process with the Primitive Space.
+always starting the lookup and symbol declaration processes with the Primitive
+Space.
 
 ### Value Categories
 
@@ -322,7 +323,7 @@ Poly supports C-style comments in both single-line and multi-line forms. That
 is, comments can be started by a double forward slash (`//`) and span until the
 end of the line, or by the multi-line start sequence (`/*`) and span multiple
 lines until the multi-line end sequence (`*/`). In either case, the span area
-is ignored by the interpreter. Multi-line nested comments are not allowed.
+is ignored by the interpreter. Nested comments are not allowed.
 
 ### Object Mappings
 
@@ -431,9 +432,9 @@ support Unicode, but neither of these types is coupled with that concept. The
 main idea is to make `string` an abstract metatype that can represent any
 collection of characters.
 
-The name `array` in the standard declaration doesn't mean anything, and it is
+The name `array` in the standard declaration doesn't mean anything, and is
 not a reserved keyword. `[T, ...]`, for example, is also valid and the two are
-semantically equivalent. Engines must not make a distinction of the chocie of
+semantically equivalent. Engines must not make a distinction of the choice of
 this name.
 
 Arrays are heterogenous but only if declared that way. A `[Pet]` declaration,
@@ -550,13 +551,12 @@ principle.
 When annotations appear in lists, specifically Field Lists and Parameter Lists,
 a mix of annotated and non-annotated entities is not allowed. Although such
 constructs are valid from a syntatic perspective, such scenario must not pass
-semantic validation, otherwise provoking an error. The only exception to this
-is when the Reference being declared is `void`, in which case the Annotation
-must be omitted.
+semantic validation, otherwise provoking an error.
 
-As was clarified before, numbers with semantic meaning are only supported for
-the Hindu-Arabic numeral system, which is the case of annotations. Future
-revisions should change this behaviour to span other numeric systems as well.
+Currently, annotations only support the Hindu-Arabic numeral system. This is
+justified by one's own lack of knowledge in other numeral systems, and their
+use in a context where the numerals bear meaning. Future revisions should
+change this behaviour to span other numeral systems as well.
 
 ### Modifiers
 
@@ -572,14 +572,14 @@ for example, causes the field to be flagged as being deprecated. The question
 `optional` and `required`, respectively. The following table summarizes all
 recognized modifiers:
 
-| Modifier   | Description                 |
-|------------|-----------------------------|
-| sensitive  | Flags a field as sensitive. |
-| deprecated | To be determined.           |
-| required   | Flags a field as required.  |
-| optional   | Flags a field as optional.  |
-| !          | Alias for "required".       |
-| ?          | Alias for "optional".       |
+| Modifier   | Description                        |
+|------------|------------------------------------|
+| sensitive  | Flags a field as sensitive.        |
+| deprecated | Flags a field as being deprecated. |
+| required   | Flags a field as required.         |
+| optional   | Flags a field as optional.         |
+| !          | Alias for "required".              |
+| ?          | Alias for "optional".              |
 
 The `sensitive` keyword tells the interpreter to flag the field as being of a
 sensitive nature, applying to the likes of passwords. This will instruct UI
@@ -587,11 +587,15 @@ generators to use an obfuscation control, for example. More importantly, it can
 tell the deployment enviroment not to log this attribute, or not to broadcast
 it on the network.
 
+The `deprecated` modifier can be used by code generators and other engines to
+bear semantic value in varying and unspecified ways. In the context of Poly, in
+a more direct sense, it serves documentation purposes.
+
 The `required` and `optional` modifiers are mutually exclusively, as are their
 alias counterparts. The semantic value of the action is to flag an entity as
 being of a certain nature, and that nature cannot contradict itself. Therefore,
-`required` and `optional`, as well as `!` and `?`, must not appear in the same
-expression, otherwise causing the system to error.
+`required` and `optional`, in their literal or abreviated forms, must not appear
+in the same expression, otherwise causing the system to error.
 
 ### Fields
 
@@ -604,7 +608,7 @@ that the purpose of a Field expression is only made clear when found within
 the scope of some other declaration. They are, however, l-value expressions,
 and introduce the Symbol they declare in the context in which they appear.
 
-Fields have a Type, a name, and zero or more modifiers. The Type must correspond
+Fields have a Type, a name, and zero or more Modifiers. The Type must correspond
 to either a Primitive or a Model, declared somewhere in the symbol space,
 causing an error that not being the case. These declarations, thus, associate a
 data type and modifiers with a given name, the same name that is to be used for
@@ -612,7 +616,9 @@ symbol lookups.
 
 By default, Fields are required. The explicit presence of the `required`
 modifier is redundant, unless some option is passed to the interpreter that
-changes the default (e.g. command line options).
+changes the default (e.g. command line options). In that sense, omitting the
+declaration doesn't mean "required", but rather "whatever is the currently
+active default". For the most part, thought, that is supposed to be `required`.
 
 For the sake of readability, it’s recommended that the special exclamation and
 question marks appear before any other declaration and right next to the field
@@ -647,7 +653,7 @@ other types of constructs, otherwise provoking an engine error.
 ### Location
 
 ```
-location    = word
+location    = "body" / "path" / "query" / "header" / "cookie"
 ```
 
 The Location attribute refers to where a value is expected to appear in the
@@ -666,7 +672,10 @@ all available location modifiers:
 `path` applies to parameterized endpoints, where the value of the attribute
 will replace some template variable. For example, if an expression declares
 some URL endpoint such as `items/{itemId}`, the template `itemId` would be
-replaced by the value in `path`.
+replaced by some value `itemId` with a `path` Location attribute.
+
+The semantic value of the Location attribute under the context of non-HTTP
+protocols is yet to be determined.
 
 ### Parameters
 
@@ -677,9 +686,10 @@ parameter   =  [ location ] field
 Parameters extend on Fields by specifying the Location in which the field is to
 appear. When omitted, `body` is assumed as the default Location, saving some
 typing. The exception to this is when the field is declared by Reference, and
-the Reference is a field that declares a Location of its own. In that case, the
-default is overriden by the Reference, while the Reference can be overriden by
-an explicit Location.
+that Reference is to a Parameter. In that case, the Location is whatever is
+specified in the original Parameter construct, and it cannot be overriden. In
+fact, any attempt to so results in an error. Locations can still be specified if
+the Reference is to a Field.
 
 ### Parameter Lists
 
@@ -1176,6 +1186,15 @@ language cannot express constructs such as "I accept either A or B";
 
 * Consider validators as a way to ellaborate on what a given Template is
 supposed to accept. Validators can be regular or context-free;
+
+* The Location attribute is deeply coupled with the HTTP protocol, and thus
+support for other transport schemes is compromised. Future revisions should
+put this into consideration;
+
+* It's not known how to handle Unicode strings, or their respective encodings.
+As it currently stands, it would appear that the declaration forces services to
+support any kind of string, whatever the encoding, and that might not be too
+realistic;
 
 * This document is not final and several constructs are still being added to
 this specification. The major ones being considered are `group`, `rest`,
