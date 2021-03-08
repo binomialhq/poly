@@ -858,6 +858,8 @@ that they promote.
 One final observation is that no declaration can inherit a prototype from a
 different type of declaration. That is, Models inherit from Models, Services
 inherit from Services, and so on, and the prototype chain must not be mixed.
+The only exception to this rule is with Groups, which can only be prototyped
+from Group Templates, not other Groups.
 
 ### Models
 
@@ -1130,7 +1132,7 @@ revisions. The excluded verbs are the following:
 ### Procedures
 
 ```
-procedure       = verb path procedure-in procedure-out
+procedure       = verb path procedure-in procedure-out / reference
 prodecure-in    = [ annotation ] type
 procedure-out   = [ annotation ] type [ exception-list ]
 ```
@@ -1141,7 +1143,7 @@ resource is indicated by a Path, possibly parameterized, and the method by a
 Verb. The following example illustrates one such declaration:
 
 ```
-GET /pets/ void 1:[Pet] {
+GET /pets void 1:[Pet] {
     4xx: ClientError,
     5xx: ServerError
 }
@@ -1162,7 +1164,10 @@ This behaves the same way as the Output declaration when produced with the `out`
 keyword, with the exception that the construct must not use Prototypes, and it
 does not introduce any symbol in the symbol space.
 
-Procedures are r-values, and cannot be referenced in any way.
+Procedures are r-values, and cannot be referenced directly. They can, however,
+be referenced when annotated, when in the context of a Group Annotation. In
+that case, the given Reference must be to a Procedure, otherwise resulting in a
+semantic error.
 
 ### Group Annotations
 
@@ -1172,22 +1177,138 @@ group-annotation    = word ":"
 
 Group Annotations work as other types of Annotations, in the sense that they
 provide an identifier for the declaration that follows them. The key difference
-is that Group Annotations are not numeric, but rather `word`s.
+is that Group Annotations are not numeric, but rather `word`s. Annotations
+introduce the construct that follows them associated with the symbol that they
+define on the Active Scope, and are thus l-values.
+
+### Annotated Procedure List
+
+```
+annotated-procedure-list        =  "{" annotated-procedure-list-items "}"
+annotated-procedure-list-items  =  annotated-procedure-list-decl
+annotated-procedure-list-items  =/ annotated-procedure-list-decl ","
+annotated-procedure-list-items  =/ annotated-procedure-list-decl "," annotated-procedure-list-items
+annotated-procedure-list-decl   =  group-annotation procedure
+```
+
+Annotated Procedure Lists are like any other list, in the sense that they
+consist of comma-sperated values delimited by curly brackets. The list
+introduces Group Annotations with corresponding Procedures or procedure
+References.
+
+A Group Annotation must not appear repeated in the list, otherwise causing an
+error.
 
 ### Groups
 
 ```
+group       = "group" group-decl
+group-decl  = symbol path [ prototype ] annotated-procedure-list
+```
 
-group FooBar {
+Groups are constructs used to group Procedures that relate over some semantic
+aspect or their base path. That is, they can, for example, refer to the same or
+similar entities, or otherwise share the same base URI.
 
-    list: GET /pets/ void [Pet],
+Groups introduce a Group Annotation list, in which the annotated elements can
+only be Procedures. This creates a list of annotated Procedures that lives and
+is referenceable under the same entity. 
 
-    create: PUT /pets/ NewPet Pet,
-
-    
-}
+In the example that follows, the base path `/pets` is inherited by the `list`
+Procedure, since the Path component is empty. As for the `read` method, the
+component is attached, resulting in `/pets/{petId}`.
 
 ```
+group PetStoreGroup /pets {
+
+    list: GET void [Pet],
+
+    read: GET /{petId} void Pet
+}
+```
+
+A trailing slash may appear in the Group URI, but that is not recommended. This
+is because the Path components must already begin with a slash, meaning that
+a duplication would occur. If URI for the Group in the example above was to be
+changed to `/pets/`, then the `read` method would live under `/pets//{petdId}`,
+with two slashes.
+
+The Group Annotations can be used to create References to Procedures. In that
+sense, the method for `read`, above, can be referenced as `PetStoreGroup.read`.
+
+Groups support Prototyping, but from Group Templates, rather than from other
+Groups. As such, Groups don't support real inheritance, but rather an
+implementation of templates, similar to the Java `interface` concept.
+
+Groups are r-values, introducing the Symbol that they define in the Active
+Scope.
+
+### Group Templates
+
+```
+```
+
+Group Templates do define abstract constructs that can be used as a means for
+code reuse when dealing with Groups. The code below, for example, illustrates
+how one could roughly represent the REST concept, by creating a template for it
+that can be implemented by several groups. This improves great on code reuse.
+
+```
+template PetStoreTemplate Entity, NewEntity {
+
+    list: GET void [Entity],
+
+    create: PUT Entity NewEntity,
+
+    read: GET /{id} void Entity,
+
+    update: POST /{id} Entity Entity,
+
+    delete: DELETE /{id} void void
+}
+```
+
+The key thing to note is that Group Templates are very similar to Groups, in the
+sense that they define a list of Procedures. The main differences are that the
+template does not accept a Path declaration, and instead introduces a list of
+abstract entities. Such entities can be replaced by specific Models, when being
+Prototyped in actual groups.
+
+In the example that follows, `PetStoreGroup` inherits all constructs from
+`PetStoreTemplate`, while defining `Entity` and `NewEntity` as `Pet` and
+`NewPet`, respectively.
+
+```
+group PetStoreGroup /pets from PetStoreTemplate (Pet, NewPet)
+```
+
+Further defining other Procedures is optional, but, in any case, those still
+need to be annotated. In case the annotations overlap with the template, the
+Procedure is not overloaded, and rather triggers a system error.
+
+```
+group PetStoreGroup /pets from PetStoreTemplate (Pet, NewPet) {
+
+    create: PUT Entity Entity,      // Error, "create" is already defined
+}
+```
+
+Group Templates themselves can be Prototyped, in which case they inherit the
+declarations from the prototype parent. The same holds, however, that the
+annotations are not overriden and must not match.
+
+The Paths that appear on the Group Template will be resolved according to the
+base Path given by the Groups that implement it. That is, the `read` Procedure
+for the example above, would yield `/pets/{id}`for the instantiation that
+follows it.
+
+
+
+
+
+
+
+
 
 ### Future Work
 
