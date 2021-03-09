@@ -673,8 +673,8 @@ all available location modifiers:
 | cookie   | The parameter is passed as a cookie.                        |
 
 `path` applies to parameterized endpoints, where the value of the attribute
-will replace some template variable. For example, if an expression declares
-some URL endpoint such as `items/{itemId}`, the template `itemId` would be
+will replace some Path Template variable. For example, if an expression declares
+some URL endpoint such as `items/{itemId}`, the Path Template `itemId` would be
 replaced by some value `itemId` with a `path` Location attribute.
 
 The semantic value of the Location attribute under the context of non-HTTP
@@ -859,7 +859,7 @@ One final observation is that no declaration can inherit a prototype from a
 different type of declaration. That is, Models inherit from Models, Services
 inherit from Services, and so on, and the prototype chain must not be mixed.
 The only exception to this rule is with Groups, which can only be prototyped
-from Group Templates, not other Groups.
+from Templates, not other Groups.
 
 ### Models
 
@@ -1050,15 +1050,15 @@ out PetOut 1:Pet {
 }
 ```
 
-### Templates
+### Path Templates
 
 ```
-template    = "{" word "}"
+path-template   = "{" word "}"
 ```
 
-Templates parameterize Universal Resource Identifiers (URI). For example, in
-the path `pets/{petId}`, `petId` is a template argument that is supposed to be
-replaced by a value in the path component of the URI.
+Path Templates parameterize Universal Resource Identifiers (URI). For example,
+in the path `pets/{petId}`, `petId` is a Path Template argument that is supposed
+to be replaced by a value in the path component of the URI.
 
 All values that are valid as per the `segment` specification in
 [RFC 3986](https://tools.ietf.org/html/rfc3986), including empty strings, are
@@ -1073,7 +1073,7 @@ defined as `/pets/{petId}/attr`, in which case the substitution of `petId` with
 
 ```
 path                    = *( "/" [ parameterized-segment ] )
-parameterized-segment   = *pchar [ template ] *pchar
+parameterized-segment   = *pchar [ path-template ] *pchar
 segment                 = *pchar
 pchar                   = unreserved / pct-encoded / sub-delims / ":" / "@"
 unreserved              = LETTER / DECIMAL / "-" / "." / "_" / "~"
@@ -1095,8 +1095,8 @@ and `/pets/` correspond to different server endpoints.
 
 Not unlike the original RFC specification, paths consisting of a sequence of
 forward slashes, such as `///`, are valid paths. This is especially true given
-that paths can be parametrized by templates, since templates can be replaced
-by empty values.
+that paths can be parametrized by Path Templates, since Path Templates can be
+replaced by empty values.
 
 ### Verbs
 
@@ -1199,6 +1199,52 @@ References.
 A Group Annotation must not appear repeated in the list, otherwise causing an
 error.
 
+### Templates
+
+```
+template        = "template" template-decl
+template-decl   = symbol template-entity-list annotated-procedure-list
+
+template-entity-list        = "(" template-entity-list-items ")"
+template-entity-list-items  = symbol
+template-entity-list-items  = symbol "," template-entity-list-items
+```
+
+Templates define abstract constructs that can be used as a means for code reuse.
+The code below, for example, illustrates how one could roughly represent the
+REST concept, by specifying a group of methods that respects to the paradigm.
+
+```
+template PetStoreTemplate (Entity, NewEntity) {
+
+    list: GET void [Entity],
+
+    create: PUT Entity NewEntity,
+
+    read: GET /{id} void Entity,
+
+    update: POST /{id} Entity Entity,
+
+    delete: DELETE /{id} void void
+}
+```
+
+Templates define a list of Procedures and another of abstract entities. Such
+entities can be replaced by specific Models when the Template is being
+instantied.
+
+Templates themselves can be Prototyped, in which case they inherit the
+declarations from the prototype parent. The annotations, however, are not
+overriden, and instead must not match, otherwise triggering an error.
+
+Templates are l-values, and any of the Symbols that they declare can be referred
+by References.
+
+
+
+
+
+
 ### Groups
 
 ```
@@ -1236,43 +1282,20 @@ with two slashes.
 The Group Annotations can be used to create References to Procedures. In that
 sense, the method for `read`, above, can be referenced as `PetStoreGroup.read`.
 
-Groups support Prototyping, but from Group Templates, rather than from other
-Groups. As such, Groups don't support real inheritance, but rather an
-implementation of templates, similar to the Java `interface` concept.
+Groups support Prototyping, but from Templates, rather than from other Groups.
+As such, Groups don't support real inheritance, but rather an implementation of
+Templates, similar to the Java `interface` concept.
 
 Groups are r-values, introducing the Symbol that they define in the Active
 Scope.
 
-### Group Templates
 
-```
-```
 
-Group Templates do define abstract constructs that can be used as a means for
-code reuse when dealing with Groups. The code below, for example, illustrates
-how one could roughly represent the REST concept, by creating a template for it
-that can be implemented by several groups. This improves great on code reuse.
 
-```
-template PetStoreTemplate Entity, NewEntity {
 
-    list: GET void [Entity],
 
-    create: PUT Entity NewEntity,
 
-    read: GET /{id} void Entity,
 
-    update: POST /{id} Entity Entity,
-
-    delete: DELETE /{id} void void
-}
-```
-
-The key thing to note is that Group Templates are very similar to Groups, in the
-sense that they define a list of Procedures. The main differences are that the
-template does not accept a Path declaration, and instead introduces a list of
-abstract entities. Such entities can be replaced by specific Models, when being
-Prototyped in actual groups.
 
 In the example that follows, `PetStoreGroup` inherits all constructs from
 `PetStoreTemplate`, while defining `Entity` and `NewEntity` as `Pet` and
@@ -1283,7 +1306,7 @@ group PetStoreGroup /pets from PetStoreTemplate (Pet, NewPet)
 ```
 
 Further defining other Procedures is optional, but, in any case, those still
-need to be annotated. In case the annotations overlap with the template, the
+need to be annotated. In case the annotations overlap with the Template, the
 Procedure is not overloaded, and rather triggers a system error.
 
 ```
@@ -1293,13 +1316,10 @@ group PetStoreGroup /pets from PetStoreTemplate (Pet, NewPet) {
 }
 ```
 
-Group Templates themselves can be Prototyped, in which case they inherit the
-declarations from the prototype parent. The same holds, however, that the
-annotations are not overriden and must not match.
 
-The Paths that appear on the Group Template will be resolved according to the
-base Path given by the Groups that implement it. That is, the `read` Procedure
-for the example above, would yield `/pets/{id}`for the instantiation that
+The Paths that appear on the Template will be resolved according to the base
+Path given by the Groups that implement it. That is, the `read` Procedure for
+the example above, would yield `/pets/{id}`for the instantiation that
 follows it.
 
 
