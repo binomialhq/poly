@@ -8,10 +8,10 @@ Copyright (C) 2021 Binomial. All Rights Reserved.
 
 Poly is an Interface Description Language (IDL) proposed as a simpler yet more
 complete alternative to the likes of OpenAPI and RAML. It serves the purpose of
-describing Application Programming Interfaces (API) to enable the modeling of
-APIs, code generation, and API matchmaking. The main rationale is to avoid the
-excessively verbose constructs of other alternatives, which often rely on data
-serialization formats, such as YAML and JSON, in order to achieve the same
+describing Application Programming Interfaces (API) to enable modeling, code
+generation, and API matchmaking of web services. The main rationale is to avoid
+the excessively verbose constructs of other alternatives, which often rely on
+data serialization formats, such as YAML and JSON, in order to achieve the same
 effect, if not more.
 
 ## Purpose
@@ -23,7 +23,7 @@ The main motivation is driven by the excessively verbose nature of other
 current-practice alternatives, namely [OpenAPI](https://www.openapis.org/)
 and [RAML](https://raml.org/). Instead, Poly is inspired on succint syntatical
 constructs that are already familiar to developers. This enables the use of
-operators, scope delimiters, documentation engines and other constructs that
+operators, scope delimiters, documentation engines, and other constructs that
 are either not possible or not natural with typical data serialization formats.
 
 Similarly to its counterparts, Poly focuses on HTTP, yet additionally
@@ -35,7 +35,7 @@ parameters, both typical when using binary encodings. Thefore, the likes of
 Poly, instead, ignores any declarations related to transport and encoding
 schemes, making it agnostic to representational concerns and networking stacks.
 This enables the likes of content negotiation, or alternative protocols. Neither
-of those things is possible with OpenAPI or RAML.
+of which is possible with OpenAPI or RAML.
 
 It must be said that Poly supports a disjoint (yet overlapping) set of features
 from those of RAML and OpenAPI, in the sense that neither is strictly a superset
@@ -135,6 +135,49 @@ expressed in all uppercase.
 We do not, however, fully compromise to following them strictly in this version.
 Expect minor differences.
 
+## Example
+
+Poly is a declarative language that associates definitions with symbols in the
+scope in which they are declared. The following sample illustrates what a basic
+web service declaration might look like:
+
+```
+/*
+ * This is a sample Poly file.
+ */
+syntax 0;
+
+model ClientError {
+    1: int16 code,
+    2: string description
+}
+
+model ServerError {
+    1: int16 code,
+    2: string description,
+    3: string contact
+}
+
+service PetStore {
+
+    model Pet {
+        1: int32 id,
+        2: string name
+    }
+
+    GET / void 1:[Pet] {
+        4xx: .ClientError,
+        5xx: .ServerError
+    }
+}
+```
+
+This sample declares a `PetStore` sample service with an endpoint responding to
+`GET` requests at the root directory. This endpoint does not take any input
+and returns an array of `Pet` objects, using an unspecified encoding. The sample
+also declares error conditions for `4xx` and `5xx` error codes, for client and
+server errors, respectively.
+
 ## Specification
 
 ### Case Sensitivity
@@ -198,7 +241,7 @@ An `empty` non-terminal is also defined for the sake of defining empty rules
 that do not consume any input:
 
 ```
-empty   = ""            ; Empty string, does not consume input
+empty   =               ; Empty string, does not consume input
 ```
 
 ### Treatment of Space
@@ -209,15 +252,15 @@ space   = +SPACE
 
 Space is generally ignored by the engine unless indicated otherwise. However,
 it's notable that "space" is defined as "US-ASCII space", and not the broader
-`USPACE` declaration with Unicode support. In fact, the presence of `USPCACE`
+`USPACE` declaration with Unicode support. In fact, the presence of `USPACE`
 in a context where space is to be ignored is an error, it not matching `SPACE`.
 
 ### Symbols
 
 ```
-DQUOTE      = ["]                   ; Single U+0022 (")
-NOTDQUOTE   = [^"\\]                ; Anything but U+0022 (") or U+005C (\)
-ESCAPED     = "\\" .                ; U+005C (\) followed by one of anything
+DQUOTE      = ["]           ; Single U+0022 (")
+NOTDQUOTE   = [^"\\]        ; Anything but U+0022 (") or U+005C (\)
+ESCAPED     = "\\" .        ; U+005C (\) followed by one of anything
 ```
 
 ```
@@ -232,14 +275,18 @@ be used to refer to the model being declared. Several constructs accept symbols
 as a means of identification.
 
 Symbols may also be quoted, in which case they can also be refered to as Quoted
-Symbols. Quoted Symbols enable characters that do not fit in the Symbol
-specification to be used. For example, the declaration `model "ASN.1"` is valid,
-and declares a symbol called `ASN.1`, discarding the quotes.
+Symbols. Quoted Symbols enable characters that are not allowed in normal Symbol
+declaration. For example, the declaration `model "ASN.1"` is valid, and declares
+a symbol called `ASN.1`, discarding the quotes.
 
 Any reference to a Quoted Symbol must be provided exactly as the original
 declaration, including Space. This means that Quoted Symbols may be hard to
 read, and thus their usage is discouraged, unless under extraordinary and
-justified circumstances. How to handle multi-line strings is an open issue.
+justified circumstances.
+
+This version of the specification does not support multiline strings, and an
+open quote at a line change constitutes a syntatic error. This should change in
+future revisions.
 
 ### Scopes
 
@@ -275,8 +322,8 @@ If the lookup process fails to find the Symbol after backtracking to the
 bottommost scope, then the engine must fail with an error. On the other hand,
 if the Symbol is being declared no backtracking occurs at all, and the Symbol
 is rather declared directly in the Active Space. When that happens, the Symbol
-must not yet be declared in that space, otherwise resulting an error indicating
-a duplicated declaration.
+must not already be declared in that space, otherwise resulting in an error
+indicating a duplicated declaration.
 
 Additionally, the Primitive Space is one in which symbols are always visible and
 cannot be overloaded. This is the ideal space to declare names that are reserved
@@ -290,16 +337,14 @@ declaration processes with the Primitive Space.
 
 Poly defines two value categories, according to whether they produce new symbols
 or not. An l-value refers to an expression that persists by introducing some
-Symbol into the Active Scope. On the other hand, r-values do not introduce any
-new symbols to any scope, and thus do not persist beyond the point where they
-are declared.
+Symbol into the Active Scope. R-values do not introduce any new symbols to any
+scope, and thus do not persist beyond the point where they are declared.
 
-It's notable that each construct, small as it might be, produces values of
-either one or the other category. Considering three constructs in the example
-below, the quoted Symbol "ASN.1" and the scope delimited by curly braces are
-r-values since they do not introduce any symbols. This may seem counterintuitive
-because the quoted symbol is a Symbol, but it is in fact the `model` expression
-that declares it, and thus the `model` expression is the one that is an l-value.
+Considering three constructs in the example below, the quoted Symbol "ASN.1" and
+the scope delimited by curly braces are r-values since they do not introduce any
+symbols. This may seem counterintuitive because the quoted symbol is a Symbol,
+but it is in fact the `model` expression that declares it, and thus the `model`
+expression is the one that is an l-value.
 
 ```
 model "ASN.1" {
@@ -328,15 +373,21 @@ is ignored by the interpreter. Nested comments are not allowed.
 
 ### Object Mappings
 
-Throughout the document, some sections refer to Top-Level Declarations and
-Key-Value Mappings. These concepts are related to whether objects are inline
-when passed to or returned by a procedure, meaning that they are either encoded
-as a key-value mapping, or as a top-level object.
+Throughout this document, some sections refer to Top-Level Declarations and
+Key-Value Mappings. These concepts refer to how the objects are passed to or
+returned by a procedure. The `Pet` model declaration that follows is used to
+illustrate the difference:
 
-Key-Value Mappings are encoded as keys of some top-level object map. For
-example, given a model `Pet` with a field `name`, and the declaration `Pet pet`,
-the `pet` value is encoded as a key-value mapping for that top-level object;
-that is, if the object was to be encoded in JSON, it would look like this:
+```
+model Pet {
+    1: string name
+}
+```
+
+Key-Value Mappings are encoded as keys of some object map. In this case, the
+declaration is named, meaning that the parameter has both a type and a name,
+such as `Pet pet`. If this object was to be encoded in, say, JSON, it would be
+encoded as follows:
 
 ```
 { "pet": { "name": "Poly" } }
@@ -349,6 +400,11 @@ according to the following, if it were to be encoded in JSON as well:
 ```
 { "name": "Poly" }
 ```
+
+The difference lies in whether the declaration is named, in which case it
+appears as a key of some object mapping. If not, then its fields are flattened
+out and the object is said to be top-level, meaning that its fields appear in
+object mapping instead.
 
 ### Syntax
 
@@ -407,7 +463,7 @@ Primitive declarations introduce symbols in the Primitive Space. If the symbol
 already exists in the Primitive Space (e.g the declaration is repeated), the
 engine must fail with an error.
 
-Primitives are not declared on every file, but on a standard declaration space
+Primitives are not declared in every file, but in a standard declaration space
 that is included implicitly by the engine. How that space is declared is up to
 the implementation, and interpreters may decide to have a file physically
 allocated on persistent memory, but are not required to do so. However, whatever
