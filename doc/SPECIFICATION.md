@@ -6,30 +6,51 @@ Copyright (C) 2021 Binomial. All Rights Reserved.
 
 ## Abstract
 
-Poly is an Interface Description Language (IDL) proposed as a simpler yet more
-complete alternative to the likes of OpenAPI and RAML. It serves the purpose of
-describing Application Programming Interfaces (API) to enable modeling, code
-generation, and API matchmaking of web services. The main rationale is to avoid
-the excessively verbose constructs of other alternatives, which often rely on
-data serialization formats, such as YAML and JSON, in order to achieve the same
-effect, if not more.
+Poly is an Interface Description Language (IDL) for describing microservices. It
+serves the purpose of describing Application Programming Interfaces (API) to
+enable the modeling, code generation, and API matchmaking of the services it
+describes. Although considerably overlapping with other alternatives, such as
+OpenAPI and RAML, Poly is more complete, in the sense that it enables the
+specification of dependencies, web hooks, and other web service metadata. The
+main rationale is to enable web services to be structured as a composition of
+microservices, by formally specifying how those microservices can interact.
+
+## Background
+
+Poly is a component of the Binomial ecosystem, a project that proposes a
+platform for describing web services as a composition of microservices. In this
+model, complex web services are designed by establishing relationships between
+simpler microservices, a concept similar to the
+[unix tool philosophy](http://apache.telepac.pt/LDP/LDP/GNU-Linux-Tools-Summary/html/the-unix-tools-philosophy.html),
+but for the web. This concept is not new, but it has presented many challenges
+to Dev and DevOps professionals and communities; how do the microservices
+communicate? How can the dependencies between them be effectively managed?
+Binomial serves the purpose of making it fast and simple to create a variety of
+permutations of microservices, so that complex web services can be created on
+the fly. In order to achieve this, Binomial requires some form of understanding
+of how to consume such microservices, and, more importantly, how to enable them
+to interact. This implies knowledge of the microservice’s Application
+Programming Interface (API), its dependencies, web hooks, and I/O models, to
+mention a few.
 
 ## Purpose
 
-Poly is an Interface Description Language (IDL) designed with the intent of
-providing a simple and effective way of describing the interfaces of web
-services and components, with focus on the Hypertext Transfer Protocol (HTTP).
-The main motivation is driven by the excessively verbose nature of other
-current-practice alternatives, namely [OpenAPI](https://www.openapis.org/)
-and [RAML](https://raml.org/). Instead, Poly is inspired on succint syntatical
-constructs that are already familiar to developers. This enables the use of
-operators, scope delimiters, documentation engines, and other constructs that
-are either not possible or not natural with typical data serialization formats.
+Poly proposes a way to formally describe microservices, in such a way that their
+interactions can be automated. For example, a system that consumes a certain API
+endpoint also expects a certain type of input model: an object, of some sort.
+Given the knowledge of endpoints and their interaction requirements as a formal
+model, these interactions can be automated by the Binomial ecosystem. Poly does
+just that: it provides a formal language to describe the APIs, I/O models, and
+dependency requirements of microservices, serving as a basis for service
+matchmaking for Binomial.
 
-Similarly to its counterparts, Poly focuses on HTTP, yet additionally
-considering other alternative protocol schemes by design. For example, OpenAPI
-and RAML do not support the association of indexes with models and procedure
-parameters, both typical when using binary encodings. Thefore, the likes of
+## Overview
+
+Similarly to its counterparts, Poly focuses on HTTP, yet additionally considers
+other alternative protocol schemes by design. For example,
+[OpenAPI](https://www.openapis.org/) and [RAML](https://raml.org/) do not
+support the association of indexes with models and procedure parameters, both
+typical when using binary encodings. Therefore, the likes of
 [protobuf](https://github.com/protocolbuffers/protobuf) and
 [Thrift](https://thrift.apache.org/) cannot be described by those alternatives.
 Poly, instead, ignores any declarations related to transport and encoding
@@ -42,37 +63,89 @@ from those of RAML and OpenAPI, in the sense that neither is strictly a superset
 of the other two. In other words, Poly does not support all features offered by
 OpenAPI or RAML, nor do those support all features proposed by Poly. The former
 is explained by observing that not all constructs offered by the alternatives
-directly relate to API specifications, such as `servers` and `baseUri`. These
-markers, provided by OpenAPI and RAML, respectively, mix, in our opinion,
-concepts that should not be mixed, that of an API specification and the location
-of some specific implementation of it. Poly proposes a strict separation of
-these concerns. The fact that Poly implements features that are not made
-available by the alternatives, is rather explained by its consideration for a
-wider variety of scenarios, as well as purpose-specific language constructs.
+directly relate to API specifications, such as servers and baseUri, provided by
+OpenAPI and RAML, respectively. In our opinion, these markers mix concepts that
+should not be mixed, that of an API specification and the location of some
+specific deployment of it. Poly proposes a strict separation of these concerns.
+The fact that Poly implements features that are not made available by the
+alternatives is rather explained by its consideration for a wider variety of
+scenarios, as well as purpose-specific language constructs.
 
-From a syntatic point of view, Poly more closely resembles protobuf and Apache
+From a syntactic point of view, Poly more closely resembles protobuf and Apache
 Thrift. In fact, many linguistic constructs are inspired by those. The key
 differentiation is that Poly does not implement any form of transport or
 encoding scheme, as those do. This makes Poly portable, in the sense that it is
 expressive enough to represent services that operate over any type of network
 stack. With that in mind, Poly can be used as a tool to mediate communication
 links between services that make use of differing stacks, something that neither
-of the alternatives can claim. Instead, the language focuses on specifing API
+of the alternatives can claim. Instead, the language focuses on specifying API
 endpoints, and not much more. The declarative representation of communication
 stacks, however, is not neglectable; rather, Poly suggests that those are
-represented separatelly, and the use of different tools for different purposes.
+represented separately, and the use of different tools for different purposes.
 
-On the other hand, because Poly does not implement an encoding scheme of its
-own, it fits better within the context of OpenAPI and RAML than it does protobuf
-or Thrift. All of them are used for code generation, being differentiated only
-by the fact that the latter implement custom encoding schemes. Poly can be used
-for code generation, but also for service matchmaking, the main purpose of its
+On the other hand, since Poly does not implement an encoding scheme of its own,
+it fits better within the context of OpenAPI and RAML than it does protobuf or
+Thrift. All of them are used for code generation, being differentiated only by
+the fact that the latter implement custom encoding schemes. Poly can be used for
+code generation, but also for service matchmaking, the main purpose of its
 inception. Poly, thus, can enable the communication of services that implement
 APIs that would be compatible, had they not implemented incompatible encodings
 and other varying concerns related with transport and presentation. If two
 services, for example, implement compatible APIs but rely on different encoding
-schemes, Poly can be used as a translator to mediate the communication, easily
-enabling an integration where it would otherwise be very difficult.
+schemes, Poly can be used as a translator to mediate the communication,
+automatically enabling an integration where it would otherwise be very
+difficult.
+
+Although Poly’s goal is to propose a purpose-specific declarative language, it
+will also support equivalent forms of encodings, such as YAML, JSON, and XML.
+This provides great flexibility to developers when writing microservices
+specifications, while relying on tools and syntactic constructs that are already
+familiar to the community. Throughout this document, the language will be
+described as the purpose-specific language, although alternative specifications
+for other types of syntactic constructs are proposed at the end.
+
+## Example
+
+Poly is a declarative language that associates definitions with the scope in
+which they are declared. The following sample illustrates what a basic web
+service declaration might look like:
+
+```
+/*
+ * This is a sample Poly file.
+ */
+syntax 0, com.petstore;
+
+model ClientError {
+    1: int16 code,
+    2: string description
+}
+
+model ServerError {
+    1: int16 code,
+    2: string description,
+    3: string contact
+}
+
+service PetStore {
+
+    model Pet {
+        1: int32 id,
+        2: string name
+    }
+
+    GET / void 1:[Pet] {
+        4xx: .ClientError,
+        5xx: .ServerError
+    }
+}
+```
+
+This sample declares a PetStore sample service in the com.petstore domain, with
+an endpoint responding to GET requests at the root directory. This endpoint does
+not take any input and returns an array of Pet objects, using an unspecified
+encoding. The sample also declares error conditions for 4xx and 5xx error codes,
+for client and server errors, respectively.
 
 ## Philosophy
 
@@ -134,49 +207,6 @@ expressed in all uppercase.
 
 We do not, however, fully compromise to following them strictly in this version.
 Expect minor differences.
-
-## Example
-
-Poly is a declarative language that associates definitions with symbols in the
-scope in which they are declared. The following sample illustrates what a basic
-web service declaration might look like:
-
-```
-/*
- * This is a sample Poly file.
- */
-syntax 0;
-
-model ClientError {
-    1: int16 code,
-    2: string description
-}
-
-model ServerError {
-    1: int16 code,
-    2: string description,
-    3: string contact
-}
-
-service PetStore {
-
-    model Pet {
-        1: int32 id,
-        2: string name
-    }
-
-    GET / void 1:[Pet] {
-        4xx: .ClientError,
-        5xx: .ServerError
-    }
-}
-```
-
-This sample declares a `PetStore` sample service with an endpoint responding to
-`GET` requests at the root directory. This endpoint does not take any input
-and returns an array of `Pet` objects, using an unspecified encoding. The sample
-also declares error conditions for `4xx` and `5xx` error codes, for client and
-server errors, respectively.
 
 ## Specification
 
